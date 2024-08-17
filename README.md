@@ -1,30 +1,3 @@
-# CrawlKing
-
-**CrawlKing** is a web application designed for efficient data scraping, offering a user-friendly interface for initiating and managing web scraping tasks.
-
-## Features
-
-- **User-Friendly Interface**: Easily input scraping parameters like URL and ZIP code.
-- **Powerful Backend Engine**: Built with Node.js and Playwright for robust scraping.
-- **Data Export**: Conveniently export scraped data in various formats.
-- **Dockerized Backend**: Simplified deployment using Docker containers.
-- **Targeted Scraping**: Supports scraping from JioMart and DMart (requires an Indian proxy/VPN).
-
-## Tech Stack
-
-### Backend
-- **Node.js** with **Express.js** for server-side logic.
-- **Playwright** for web scraping.
-- **MongoDB** (with Mongoose) for data storage.
-- **JWT** for secure authentication.
-- **Docker** for containerization and streamlined deployment.
-
-### Frontend
-- **React** with **Vite** for a modern, fast user interface.
-- **React Router** for seamless navigation.
-- **React Query** for state management and server interactions.
-- **TailwindCSS** for sleek, responsive styling.
-
 ## Getting Started
 
 ### Backend Setup
@@ -44,11 +17,18 @@
 
 3. **Set Up Environment Variables:**
 
-    - Create a `.env` file with the following configurations:
+    - Copy the `.env.example` file to create your `.env` file:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    - Edit the `.env` file and fill in the necessary values:
 
     ```plaintext
     FRONTEND_URL=http://localhost:3000
     DATABASE_URL=mongodb://localhost:27017/crawlking
+    JWT_SECRET=your_jwt_secret_here
     ```
 
 4. **Run the Backend:**
@@ -110,3 +90,4 @@ Contributions are welcome! Please submit a Pull Request for any enhancements or 
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
