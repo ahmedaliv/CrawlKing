@@ -471,6 +471,7 @@ async function runJob(jobId, url, pincode) {
               let j = 2;
               let i = j * batch;
               let done = false;
+              
               try {
                 while (true) {
                   const from = i * 100000;
@@ -567,7 +568,7 @@ async function runJob(jobId, url, pincode) {
     await browser.close();
     const endTime = performance.now();
     const duration = endTime - startTime;
-    console.log(`Job ${jobId} completed in ${duration / 1000} seconds`);
+    console.log(`Job ${jobId} ${scrapeJobs[jobId].status} in ${duration / 1000} seconds`);
     scrapeJobs[jobId].duration = duration / 1000;
   }
 }

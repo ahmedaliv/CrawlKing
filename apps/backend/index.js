@@ -17,6 +17,7 @@ import authMiddleware from './users/authMiddleware.js';
 import { configDotenv } from 'dotenv';
 
 configDotenv();
+console.log(process.env.WEBHOOK_SECRET);
 const __dirname = path.resolve();
 const jobsDir = path.join(__dirname, 'jobs');
 
@@ -46,17 +47,17 @@ export const scrapeJobs = {}; // In-memory storage for scrape statuses
 
 const app = express();
 app.use(express.json({ limit: '100mb' }));
+// integrate webhook inside the routes
 // cors
-app.use(cors(
-  {
-    origin: process.env.FRONTEND_URL,
-  }
-));
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL
+  })
+);
 
 app.get('/validate-token', authMiddleware, (req, res) => {
   res.status(200).json({ message: 'Token is valid', user: req.user });
 });
-
 
 app.use('/users', userRoutes);
 
@@ -152,7 +153,7 @@ app.post('/scrape', authMiddleware, async (req, res) => {
   }
 });
 // Endpoint to check the status of the scrape
-app.get('/status/:jobId', authMiddleware,async (req, res) => {
+app.get('/status/:jobId', authMiddleware, async (req, res) => {
   const { jobId } = req.params;
   try {
     const status = await getStatus(jobId);
@@ -163,7 +164,7 @@ app.get('/status/:jobId', authMiddleware,async (req, res) => {
   }
 });
 
-app.get('/download/:jobId',authMiddleware ,(req, res) => {
+app.get('/download/:jobId', authMiddleware, (req, res) => {
   const { jobId } = req.params;
   const index = getIndex();
 
@@ -199,9 +200,10 @@ app.get('/download/:jobId',authMiddleware ,(req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-app.post('/stop/', authMiddleware,async (req, res) => {
+app.post('/stop/', authMiddleware, async (req, res) => {
   const { jobId } = req.body;
   const index = getIndex();
+  console.log(`job with id ${jobId} is being stopped`);
   if (!scrapeJobs[jobId]) {
     return res.status(200).json({ error: 'job not found' });
   }

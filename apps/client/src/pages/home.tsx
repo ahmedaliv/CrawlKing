@@ -54,6 +54,7 @@ export function Home() {
     },
 
     onSuccess: (data) => {
+      setHasConnectionError(false);
       localStorage.setItem('jobId', data.jobId);
     },
     onError: async (error) => {
@@ -63,16 +64,53 @@ export function Home() {
       }
     }
   });
-  const jobId =
-    localStorage.getItem('jobId') || submitMutation?.data?.jobId || null;
+  const stopMutation = useMutation({
+    mutationFn: async () => {
+      const res = await client.post('stop', {
+        json: {
+          jobId: localStorage.getItem('jobId')
+        },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}` || ''
+        }
+      });
+      return (await res.json()) as { jobId: string };
+    },
+    onSuccess: () => {
+      localStorage.removeItem('jobId');
+      jobId = null;
+    }
+  });
+  let jobId = localStorage.getItem('jobId') || null;
+  const [hasConnectionError, setHasConnectionError] = useState(false);
   const progressQuery = useQuery({
+    retry: (failureCount, error) => {
+      console.log(failureCount, error);
+
+      // Check if it's a network error
+      if (error.message === 'Network error' || error instanceof TypeError) {
+        // Stop retrying after 3 failures
+        if (failureCount > 2) {
+          setHasConnectionError(true); // Set connection error state
+          // enable the retry button
+          isFailed = true;
+          console.log('isFailed', isFailed);
+          return false; // Prevent further retries
+        }
+        return true; // Retry for the first 3 failures
+      }
+      return failureCount < 3; // Allow retries for other errors
+    },
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
+    staleTime: 0,
     enabled: (query) => {
       return (
         !!jobId &&
+        !hasConnectionError &&
         query &&
         query?.state?.data?.status !== 'completed' &&
+        query?.state?.data?.status !== 'cancelled' &&
         query?.state?.data?.status !== 'unknown'
       );
     },
@@ -82,8 +120,11 @@ export function Home() {
           Authorization: `Bearer ${localStorage.getItem('token')}` || ''
         }
       });
-      if (!res.ok && res.status === 401) {
-        handleUnauthorizedError();
+      if (!res.ok) {
+        console.log(res.body);
+        if (res.status === 401) {
+          handleUnauthorizedError();
+        }
       }
       const json = (await res.json()) as {
         status: 'running' | 'completed' | 'cancelled' | 'failed' | 'unknown';
@@ -101,7 +142,7 @@ export function Home() {
   });
   const isScrapingInProgress = progressQuery?.data?.status === 'running';
   const isScrappingDone = progressQuery?.data?.status === 'completed';
-  const isFailed = progressQuery?.data?.status === 'failed';
+  let isFailed = progressQuery?.data?.status === 'failed';
   const isExportDisabled = !isScrappingDone;
   const handleLogout = () => {
     // Clear token and jobId from localStorage
@@ -122,14 +163,20 @@ export function Home() {
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    const handleBeforeUnload = () => {
+      // Remove jobId from localStorage when the tab is closed
+      localStorage.removeItem('jobId');
+    };
 
-    // Cleanup the event listener on component unmount
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup the event listeners on component unmount
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [navigate]);
-
   const handleExport = () => {
     fetch(`${apiPrefix}/download/${submitMutation?.data?.jobId}`, {
       headers: {
@@ -190,13 +237,15 @@ export function Home() {
               />
             </div>
             {!jobId ? (
-              <Button
-                onClick={() => {
-                  submitMutation.mutate();
-                }}
-              >
-                Scrape
-              </Button>
+              <>
+                <Button
+                  onClick={() => {
+                    submitMutation.mutate();
+                  }}
+                >
+                  Scrape
+                </Button>
+              </>
             ) : (
               <Dialog>
                 <DialogTrigger asChild>
@@ -251,6 +300,14 @@ export function Home() {
                 </DialogContent>
               </Dialog>
             )}
+            <Button
+              disabled={!isScrapingInProgress}
+              onClick={() => {
+                stopMutation.mutate();
+              }}
+            >
+              Stop
+            </Button>
           </div>
         </div>
         <div className="flex size-full flex-col space-y-4 pb-10 md:h-1/2">
