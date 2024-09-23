@@ -14,139 +14,63 @@ async function runJob(jobId, url, pincode) {
     // Create a new Playwright context
     const context = await browser.newContext();
     const page = await context.newPage();
+    
     // Navigate to the target URL
     try {
       await page.goto(url, { timeout: 60 * 1000 });
     } catch (error) {
-      if (error instanceof TimeoutError) {
-        throw new Error(`Navigation to ${url} timed out after ${60} seconds`);
-      }
-      throw error;
+      throw new Error(`Navigation to ${url} timed out after ${60} seconds`);
     }
 
-    // await page.goto(url);
-    const lastSegmentOfUrl = url.split('/').pop();
-    await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
-    let promiseRes = null;
-    const promise = new Promise((resolve) => {
-      promiseRes = resolve;
-    });
-    let found = false;
-    await page.route('**/*', async (route) => {
-      const url = route.request().url();
-      if (url.includes('api/v2/plp/' + lastSegmentOfUrl)) {
-        found = true;
-        const headers = await route.request().allHeaders();
-        const url = route.request().url();
-        const initialResponse = await route.fetch();
-        const json = await initialResponse.json();
-        const totalProducts = json.totalRecords;
-        const urlOnly = url.split('?')[0];
-        let params = url.split('?')[1];
-        const replacePageNumberRegex = /page=\d+/;
-        params = params.replace(replacePageNumberRegex, 'page=0');
-        scrapeJobs[jobId].progress = 5;
-        let total = 0;
-        let prevTotal = 0;
-        if (totalProducts > 10000) {
-          const batchSize = 1000;
-          params = params.replace('size=40', `size=${batchSize}`);
-          const batches = Math.ceil(totalProducts / batchSize);
-          let i = 1;
-          while (i < batches) {
-            // urlSearchParams.set('page', i);
-            params = params.replace(`page=${i - 1}`, `page=${i}`);
-            const batch = await page.request.get(urlOnly + '?' + params, {
-              headers
-            });
-            const batchJson = await batch.json();
-            prevTotal = total;
-            total += batchJson.products.length;
-            const batchId = `${prevTotal}-${total}`;
-            scrapeJobs[jobId].progress = Math.floor(
-              (total / totalProducts) * 100
-            );
-            if (scrapeJobs[jobId].progress < 5) {
-              scrapeJobs[jobId].progress = 5;
-            }
-            scrapeJobs[jobId].total_products = total;
-            if (scrapeJobs[jobId].status === 'cancelled') {
-              break;
-            }
-            // do not add empty batches
-            if (batchJson.products.length === 0) {
-              i++;
-              continue;
-            }
-            await appendToJsonFile(
-              `./jobs/${jobId}/data.json`,
-              batchJson.products
-            );
-            await appendFile(
-              `./jobs/${jobId}/${batchId}.json`,
-              JSON.stringify(batch, null, 2)
-            );
-            batches--;
-          }
-        } else {
-          const bigBatch = totalProducts;
-          params = params.replace('size=40', `size=${bigBatch}`);
-          const batch = await page.request.get(urlOnly + '?' + params, {
-            headers
-          });
-          const batchJson = await batch.json();
-          total += batchJson.products.length;
-          const batchId = `${0}-${bigBatch}`;
-          // transform the products to the desired format
-          batchJson.products = batchJson.products.map((product) => {
-            const firstSKU =
-              product.sKUs && product.sKUs[0] ? product.sKUs[0] : {};
-            return {
-              name: product.name || 'Unknown Product',
-              brand: product.manufacturer || 'Unknown Brand',
-              unitPrice: firstSKU.priceMRP || '0.00',
-              salePrice: firstSKU.priceSALE || '0.00',
-              variant: firstSKU.variantTextValue || 'N/A',
-              image: firstSKU.productImageKey || 'default-image.jpg',
-              url: product.targetUrl || '#'
-            };
-          });
-          await appendToJsonFile(
-            `./jobs/${jobId}/data.json`,
-            batchJson.products
-          );
-          await appendFile(
-            `./jobs/${jobId}/${batchId}.json`,
-            JSON.stringify(batch, null, 2)
-          );
-        }
-        if (scrapeJobs[jobId].status !== 'cancelled') {
-          scrapeJobs[jobId].progress = 100;
-          scrapeJobs[jobId].status = 'completed';
-          scrapeJobs[jobId].total_products = totalProducts;
-        }
-        await appendFile(
-          `./jobs/${jobId}/stats.json`,
-          JSON.stringify(scrapeJobs[jobId], null, 2)
-        );
-        promiseRes();
-      }
-      route.continue();
-    });
-    
+    // Handle location input
     const pincodeButton = page.locator('.dmart-icon-location').first();
     await pincodeButton.click();
-    await page.waitForSelector('#pincodeInput',{timeout: 3 * 60000});
+    await page.waitForSelector('#pincodeInput', { timeout: 3 * 60000 });
     const pincodeInput = page.locator('#pincodeInput');
     await pincodeInput.fill(pincode);
     const pinCode = page.getByAltText('pincodeimg').first();
     await pinCode.click();
     const confirm = page.getByText('CONFIRM LOCATION').first();
     await confirm.click();
-    await page.evaluate(() => {
-      window.scrollTo(0, document.body.scrollHeight);
-    });
-    await promise;
+
+    // Wait for the page to load products
+    await page.waitForTimeout(2000); // Wait for a short duration after confirmation
+    scrapeJobs[jobId].progress = 5;
+    // Extract last segment of URL for API endpoint
+    const lastSegmentOfUrl = url.split('/').pop();
+
+    // Fetch initial product count
+    const initialResponse = await page.request.get(`https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=1`);
+    const initialData = await initialResponse.json();
+    const totalProducts = initialData.totalRecords;
+
+    // Fetch all products
+    const finalResponse = await page.request.get(`https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=${totalProducts}`);
+    const allProducts = await finalResponse.json();
+
+    scrapeJobs[jobId].total_products = totalProducts;
+    scrapeJobs[jobId].progress = 15;
+    // // Transform products to the desired format
+    // const transformedProducts = allProducts.products.map((product) => {
+    //   const firstSKU = product.sKUs && product.sKUs[0] ? product.sKUs[0] : {};
+    //   return {
+    //     name: product.name || 'Unknown Product',
+    //     brand: product.manufacturer || 'Unknown Brand',
+    //     unitPrice: firstSKU.priceMRP || '0.00',
+    //     salePrice: firstSKU.priceSALE || '0.00',
+    //     variant: firstSKU.variantTextValue || 'N/A',
+    //     image: firstSKU.productImageKey || 'default-image.jpg',
+    //     url: product.targetUrl || '#'
+    //   };
+    // });
+
+    // Save results
+    await appendToJsonFile(`./jobs/${jobId}/data.json`, allProducts);
+    scrapeJobs[jobId].progress = 100;
+    scrapeJobs[jobId].status = 'completed';
+    
+    await appendFile(`./jobs/${jobId}/stats.json`, JSON.stringify(scrapeJobs[jobId], null, 2));
+
   } catch (error) {
     scrapeJobs[jobId] = {
       status: 'failed',
@@ -158,7 +82,7 @@ async function runJob(jobId, url, pincode) {
     const endTime = performance.now();
     const duration = endTime - startTime;
     console.log(
-      `Job ${jobId}  ${scrapeJobs[jobId].status} in duration ${
+      `Job ${jobId} ${scrapeJobs[jobId].status} in duration ${
         duration / 1000
       } seconds`
     );

@@ -17,7 +17,6 @@ import authMiddleware from './users/authMiddleware.js';
 import { configDotenv } from 'dotenv';
 
 configDotenv();
-console.log(process.env.WEBHOOK_SECRET);
 const __dirname = path.resolve();
 const jobsDir = path.join(__dirname, 'jobs');
 
