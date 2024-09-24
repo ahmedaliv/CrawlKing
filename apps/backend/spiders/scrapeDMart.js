@@ -22,7 +22,7 @@ async function runJob(jobId, url, pincode) {
       throw new Error(`Navigation to ${url} timed out after ${60} seconds`);
     }
 
-    // Handle location input
+    // Handle location input (Pincode)
     const pincodeButton = page.locator('.dmart-icon-location').first();
     await pincodeButton.click();
     await page.waitForSelector('#pincodeInput', { timeout: 3 * 60000 });
@@ -36,33 +36,68 @@ async function runJob(jobId, url, pincode) {
     // Wait for the page to load products
     await page.waitForTimeout(2000); // Wait for a short duration after confirmation
     scrapeJobs[jobId].progress = 5;
-    // Extract last segment of URL for API endpoint
+
+    // **Step 1: Get cookies after confirming pincode**
+    const cookies = await context.cookies();
+    const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+
+    // Extract x-request-id and d_info from cookies
+    const reqIdCookie = cookies.find(cookie => cookie.name === 'reqId');
+    const x_request_id = reqIdCookie ? decodeURIComponent(reqIdCookie.value.replace(/"/g, '')) : null;
+    const d_info = cookies.find(cookie => cookie.name === 'd_info')?.value.replace(/"/g, '');
+
+    // Extract storeId from guest cookie if it exists
+    let storeId = "10695"; // Default storeId if not in the cookie
+    const guestCookie = cookies.find(cookie => cookie.name === 'guest');
+    if (guestCookie) {
+      const guestData = JSON.parse(decodeURIComponent(guestCookie.value));
+      storeId = guestData.preferredStore || storeId;
+    }
+
+    // Define headers with d_info and other values
+    const headers = {
+      "accept": "application/json, text/plain, */*",
+      "accept-language": "en-US,en;q=0.8",
+      "cache-control": "no-cache",
+      "d_info": d_info || '', // Inject d_info from the cookies
+      "pragma": "no-cache",
+      "priority": "u=1, i",
+      "sec-ch-ua": "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Brave\";v=\"128\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Linux\"",
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "sec-gpc": "1",
+      "storeid": storeId,
+      "x-request-id": x_request_id || ''
+    };
+
     const lastSegmentOfUrl = url.split('/').pop();
 
-    // Fetch initial product count
-    const initialResponse = await page.request.get(`https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=1`);
+    // **Step 2: Fetch initial product count (Initial Response)**
+    const initialResponse = await page.request.get(`https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=1`, {
+      headers: {
+        ...headers,
+        "Cookie": cookieString // Inject cookies
+      }
+    });
     const initialData = await initialResponse.json();
     const totalProducts = initialData.totalRecords;
 
-    // Fetch all products
-    const finalResponse = await page.request.get(`https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=${totalProducts}`);
-    const allProducts = await finalResponse.json();
-
+    // Update scrape job progress and total products
     scrapeJobs[jobId].total_products = totalProducts;
     scrapeJobs[jobId].progress = 15;
-    // // Transform products to the desired format
-    // const transformedProducts = allProducts.products.map((product) => {
-    //   const firstSKU = product.sKUs && product.sKUs[0] ? product.sKUs[0] : {};
-    //   return {
-    //     name: product.name || 'Unknown Product',
-    //     brand: product.manufacturer || 'Unknown Brand',
-    //     unitPrice: firstSKU.priceMRP || '0.00',
-    //     salePrice: firstSKU.priceSALE || '0.00',
-    //     variant: firstSKU.variantTextValue || 'N/A',
-    //     image: firstSKU.productImageKey || 'default-image.jpg',
-    //     url: product.targetUrl || '#'
-    //   };
-    // });
+
+    // **Step 3: Fetch all products using the total product count**
+    const finalResponse = await page.request.get(`https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=${totalProducts}&channel=web&storeId=${storeId}`, {
+      headers: {
+        ...headers,
+        "Cookie": cookieString // Inject cookies
+      }
+    });
+
+    const allProducts = await finalResponse.json();
 
     // Save results
     await appendToJsonFile(`./jobs/${jobId}/data.json`, allProducts);
