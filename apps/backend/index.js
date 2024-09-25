@@ -46,7 +46,6 @@ export const scrapeJobs = {}; // In-memory storage for scrape statuses
 
 const app = express();
 app.use(express.json({ limit: '100mb' }));
-// integrate webhook inside the routes
 // cors
 app.use(
   cors({
