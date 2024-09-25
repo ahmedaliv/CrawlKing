@@ -61,49 +61,35 @@ async function runJob(jobId, url, pincode) {
     }
 
     // Define headers with d_info and other values
-    // make any thing device specific in the headers to be changed every time
-
     const headers = {
       accept: 'application/json, text/plain, */*',
-      'accept-language': getRandomItem([
-        'en-US,en;q=0.8',
-        'en-GB,en;q=0.9',
-        'fr-FR,fr;q=0.8'
-      ]),
+      'accept-language': 'en-US,en;q=0.8',
       'cache-control': 'no-cache',
-      d_info: d_info || '',
+      d_info: d_info || '', // Inject d_info from the cookies
       pragma: 'no-cache',
       priority: 'u=1, i',
-      'sec-ch-ua': `"Chromium";v="${
-        Math.floor(Math.random() * 100) + 100
-      }", "Not;A=Brand";v="24", "Brave";v="${
-        Math.floor(Math.random() * 100) + 100
-      }"`,
-      'sec-ch-ua-mobile': Math.random() > 0.5 ? '?0' : '?1', // Randomize between desktop and mobile
-      'sec-ch-ua-platform': `"${getRandomItem([
-        'Windows',
-        'Linux',
-        'Mac OS'
-      ])}"`, // Randomize platform
+      'sec-ch-ua': '"Chromium";v="128", "Not;A=Brand";v="24", "Brave";v="128"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Linux"',
       'sec-fetch-dest': 'empty',
       'sec-fetch-mode': 'cors',
       'sec-fetch-site': 'same-site',
       'sec-gpc': '1',
-      storeid: storeId || '', // Ensure this is dynamically fetched if necessary
-      'x-request-id': x_request_id // Use a function to generate a random request ID
+      storeid: storeId,
+      'x-request-id': x_request_id || ''
     };
-
     const lastSegmentOfUrl = url.split('/').pop();
 
-    const initialResponse = await page.request.get(
-      `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=1`,
-      {
-        headers: {
-          ...headers,
-          Cookie: cookieString // Inject cookies
-        }
+    // **LOGGING INITIAL REQUEST**
+    const initialRequestUrl = `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=1`;
+
+    const initialResponse = await page.request.get(initialRequestUrl, {
+      headers: {
+        ...headers,
+        Cookie: cookieString // Inject cookies
       }
-    );
+    });
+    
     const initialData = await initialResponse.json();
     const totalProducts = initialData.totalRecords;
 
@@ -116,7 +102,6 @@ async function runJob(jobId, url, pincode) {
     if (totalProducts > 500) {
       const milestones = Math.ceil(totalProducts / 500);
       let products = [];
-      // it is important to start from 1 because page 0 and page 1 are the same
       for (let i = 1; i <= milestones; i++) {
         finalResponse = await page.request.get(
           `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=${i}&size=500&channel=web&storeId=${storeId}`,
@@ -127,6 +112,7 @@ async function runJob(jobId, url, pincode) {
             }
           }
         );
+
         const milestoneData = await finalResponse.json();
         products.push(...milestoneData.products);
         scrapeJobs[jobId].progress =
@@ -143,6 +129,9 @@ async function runJob(jobId, url, pincode) {
           }
         }
       );
+      const finalData = await finalResponse.json();
+      finalResponse = finalData;
+      
     }
 
     const allProducts = finalResponse;
@@ -186,8 +175,4 @@ export async function main(url, pincode) {
 // Function to transform the items
 export function getStatus(jobId) {
   return scrapeJobs[jobId] || { status: 'unknown' };
-}
-
-function getRandomItem(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
 }
