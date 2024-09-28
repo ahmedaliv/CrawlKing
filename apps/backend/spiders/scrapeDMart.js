@@ -133,8 +133,24 @@ async function runJob(jobId, url, pincode) {
       finalResponse = finalData;
       
     }
-
-    const allProducts = finalResponse;
+    
+    const transformedProducts = finalResponse.products || []; 
+    const allProducts = transformedProducts.map((product) => {
+      return {
+        brand: product.manfacturer,
+        title: product.name,
+        variant: product.sKUs.map((variant) => {
+          return {
+            quantity: variant.variantTextValue,
+            mrp: variant.priceMRP,
+            price: variant.priceSALE,
+            articleId: variant.articleNumber
+          }
+        }),
+        url: `https://www.dmart.in/product/${product.seo_token_ntk}`,
+        pinCode: pincode,
+      };
+    });
 
     // Save results
     await appendToJsonFile(`./jobs/${jobId}/data.json`, allProducts);
@@ -146,6 +162,7 @@ async function runJob(jobId, url, pincode) {
       JSON.stringify(scrapeJobs[jobId], null, 2)
     );
   } catch (error) {
+    console.log(`Job ${jobId} failed with error: ${error.message}`);
     scrapeJobs[jobId] = {
       status: 'failed',
       progress: 0,
