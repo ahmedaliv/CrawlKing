@@ -162,19 +162,21 @@ app.get('/status/:jobId', authMiddleware, async (req, res) => {
   }
 });
 
-app.get('/download/:jobId', authMiddleware, (req, res) => {
+app.get('/download/:jobId', authMiddleware, async (req, res) => {
   const { jobId } = req.params;
   const index = getIndex();
 
   try {
     console.log('checking in memory jobs');
-
+    // Get filename from stats
+    const stats = await fs.readFile(`./jobs/${jobId}/stats.json`, 'utf8');
+    const filename = (await JSON.parse(stats)).filename;
     // Check if scrapeJobs[jobId] is defined
     if (scrapeJobs[jobId]) {
       if (scrapeJobs[jobId].status !== 'completed') {
         return res.status(400).json({ error: 'Job is still in progress' });
       }
-      return res.status(200).download(`./jobs/${jobId}/data.json`);
+      return res.status(200).download(`./jobs/${jobId}/${filename}.json`);
     }
 
     // If not found in scrapeJobs, check the index
@@ -182,9 +184,7 @@ app.get('/download/:jobId', authMiddleware, (req, res) => {
     if (!index[Object.keys(index).find((key) => index[key] === jobId)]) {
       return res.status(404).json({ error: 'Job not found' });
     }
-
-    // Attempt to download the file
-    res.download(`./jobs/${jobId}/data.json`, (err) => {
+    res.download(`./jobs/${jobId}/${filename}.json`, (err) => {
       if (err) {
         console.error(`Error downloading file for job ${jobId}:`, err);
         // Only send error response if headers haven't been sent yet

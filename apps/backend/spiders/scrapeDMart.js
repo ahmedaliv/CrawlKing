@@ -21,7 +21,9 @@ async function runJob(jobId, url, pincode) {
     } catch (error) {
       throw new Error(`Navigation to ${url} timed out after ${60} seconds`);
     }
-
+    // Get the category name from the page
+    const categoryNameElement = page.locator('.product-grid_headerText__SxW_0').first();
+    const categoryName = (await categoryNameElement.textContent()).replace(' ', '-').toLowerCase();
     // Handle location input (Pincode)
     const pincodeButton = page.locator('.dmart-icon-location').first();
     await pincodeButton.click();
@@ -89,7 +91,7 @@ async function runJob(jobId, url, pincode) {
         Cookie: cookieString // Inject cookies
       }
     });
-    
+
     const initialData = await initialResponse.json();
     const totalProducts = initialData.totalRecords;
 
@@ -131,10 +133,9 @@ async function runJob(jobId, url, pincode) {
       );
       const finalData = await finalResponse.json();
       finalResponse = finalData;
-      
     }
-    
-    const transformedProducts = finalResponse.products || []; 
+
+    const transformedProducts = finalResponse.products || [];
     const allProducts = transformedProducts.map((product) => {
       return {
         brand: product.manfacturer,
@@ -145,18 +146,24 @@ async function runJob(jobId, url, pincode) {
             mrp: variant.priceMRP,
             price: variant.priceSALE,
             articleId: variant.articleNumber
-          }
+          };
         }),
         url: `https://www.dmart.in/product/${product.seo_token_ntk}`,
-        pinCode: pincode,
+        pinCode: pincode
       };
     });
 
     // Save results
-    await appendToJsonFile(`./jobs/${jobId}/data.json`, allProducts);
-    scrapeJobs[jobId].progress = 100;
-    scrapeJobs[jobId].status = 'completed';
-
+    const filename = `Dmart-${pincode}-${categoryName}-products`; 
+    await appendToJsonFile(`./jobs/${jobId}/${filename}.json`, allProducts);
+    scrapeJobs[jobId] = {
+      url,
+      pincode,
+      status: 'completed',
+      progress: 100,
+      total_products: totalProducts,
+      filename
+    };
     await appendFile(
       `./jobs/${jobId}/stats.json`,
       JSON.stringify(scrapeJobs[jobId], null, 2)

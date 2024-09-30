@@ -83,6 +83,7 @@ export function Home() {
   });
   let jobId = localStorage.getItem('jobId') || null;
   const [hasConnectionError, setHasConnectionError] = useState(false);
+  const [fileName, setFileName] = useState<string>('data');
   const progressQuery = useQuery({
     retry: (failureCount, error) => {
       console.log(failureCount, error);
@@ -130,8 +131,15 @@ export function Home() {
         status: 'running' | 'completed' | 'cancelled' | 'failed' | 'unknown';
         progress: number;
         total_products: number;
+        filename?: string;
         duration?: number;
       };
+      console.log(json.status);
+      console.log(json);
+      // check the status , if completed put the fileName in a variable
+      if (json.status === 'completed' && json.filename) {
+        setFileName(json.filename);
+      }
       if ((json as unknown as Record<string, unknown>).error) {
         if (localStorage.getItem('jobId') !== submitMutation.data?.jobId)
           localStorage.removeItem('jobId');
@@ -185,11 +193,10 @@ export function Home() {
     }).then((response) => {
       response.blob().then((blob) => {
         const fileURL = window.URL.createObjectURL(blob);
-
         // Setting various property values
         const alink = document.createElement('a');
         alink.href = fileURL;
-        alink.download = 'scraped-data.json';
+        alink.download = fileName;
         alink.click();
       });
     });
