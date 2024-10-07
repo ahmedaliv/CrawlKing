@@ -12,6 +12,11 @@ export async function appendToJsonFile(filePath, newData) {
     } catch (error) {
       if (error.code === 'ENOENT') {
         // File doesn't exist, create it with an initial array
+        // check if already an array do not make one
+        if (Array.isArray(newData)) {
+          await fs.writeFile(filePath, JSON.stringify(newData, null, 2));
+          return;
+        }
         await fs.writeFile(filePath, JSON.stringify([newData], null, 2));
         return;
       }

@@ -149,7 +149,7 @@ async function runJob(jobId, url, pincode) {
           };
         }),
         url: `https://www.dmart.in/product/${product.seo_token_ntk}`,
-        pinCode: pincode
+        pincode: Number(pincode),
       };
     });
 
