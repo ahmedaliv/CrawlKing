@@ -1,48 +1,77 @@
 import cors from 'cors';
-import { CronJob } from 'cron';
 import express from 'express';
-import fs from 'fs/promises';
-import path from 'path';
 import { main as scrapeDMart } from './spiders/scrapeDMart.js';
 import { main as scrapeJioMart } from './spiders/scrapeJioMart.js';
-import {
-  checkFileExists,
-  getIndex,
-  readIndexFile,
-  writeIndexFile
-} from './utils/caching.js';
 import mongoose from 'mongoose';
 import userRoutes from './users/userRoutes.js';
 import authMiddleware from './users/authMiddleware.js';
 import { configDotenv } from 'dotenv';
+import Agenda from 'agenda';
+import { uuid } from 'uuidv4';
 
 configDotenv();
-const __dirname = path.resolve();
-const jobsDir = path.join(__dirname, 'jobs');
 
-export async function getStatus(jobId) {
-  // check if in memory
-  if (scrapeJobs[jobId]) {
-    return scrapeJobs[jobId];
-  }
+// MongoDB Schema for scraped data
+const scrapedDataSchema = new mongoose.Schema(
+  {
+    jobId: { type: String, required: true},
+    data: { type: Array }
+  },
+  { timestamps: true }
+);
+
+const ScrapeData = mongoose.model('ScrapeData', scrapedDataSchema);
+
+// Setup Agenda
+const agenda = new Agenda({
+  db: { address: process.env.DB_URL, collection: 'agendaJobs' }
+});
+
+// Define the scraping job
+const MAX_RETRIES = 3;
+agenda.define('scrape job', async (job) => {
+  const { url, pincode, jobId } = job.attrs.data;
+
+
   try {
-    // check if the job exists
-    const jobDir = path.join(jobsDir, jobId);
-    const jobExists = await checkFileExists(jobDir);
-    if (!jobExists) {
-      return { error: 'Job not found' };
-    }
-    // read stats file and return it
-    const statsFilepath = path.join(jobsDir, jobId, 'stats.json');
-    const stats = await fs.readFile(statsFilepath, 'utf8');
-    // add cached:true then return stats
-    return { ...JSON.parse(stats), cached: true };
+    console.log(`Starting scrape for ${url} at pincode ${pincode}`);
+    const scrapedData = url.includes('dmart.in')
+      ? await scrapeDMart(jobId, url, pincode)
+      : await scrapeJioMart(jobId, url, pincode);
+    // Save scraped data to the database
+    const scrapeResult = {
+      jobId,
+      data: scrapedData // Save the actual scraped data
+    };
+
+    const savedScrape = new ScrapeData(scrapeResult);
+    await savedScrape.save();
+    // update status
+    job.attrs.data.status = 'completed';
+    await job.save();
+    console.log(`Scraping completed for ${url}`);
   } catch (error) {
-    console.error('Error getting status, file not found');
-    return { error: 'Error getting status' };
+    console.error('Error during scraping job:', error);
+
+    // Increment failCount
+    job.attrs.data.failCount = (job.attrs.data.failCount || 0) + 1; // Store in job data
+    job.attrs.data.failReason = error.message; // Store the error message in job data
+    job.attrs.data.failedAt = new Date(); // Store the time of failure in job data
+
+    // If we have not reached the maximum number of retries, reschedule the job
+    if (job.attrs.data.failCount < MAX_RETRIES) {
+      console.log(`Retrying job for ${url}, attempt ${job.attrs.data.failCount}`);
+      await job.schedule('in 10 seconds'); // Reschedule job to run again after 5 minutes
+      await job.save();
+    } else {
+      console.log(`Job failed for ${url}. Max retries reached.`);
+      await job.fail(error.message); // Mark job as failed
+      // job.attrs.nextRunAt = null; 
+      job.attrs.data.status = 'failed';
+      await job.save();
+    }
   }
-}
-export const scrapeJobs = {}; // In-memory storage for scrape statuses
+});
 
 const app = express();
 app.use(express.json({ limit: '100mb' }));
@@ -59,184 +88,195 @@ app.get('/validate-token', authMiddleware, (req, res) => {
 
 app.use('/users', userRoutes);
 
-app.post('/scrape', authMiddleware, async (req, res) => {
-  const { url, pincode, fetchNew } = req.body;
+app.post('/scrape', async (req, res) => {
+  const { url, pincode, schedulingTime, recurrence } = req.body; // Added recurrence
   if (!url || !pincode) {
     return res.status(400).json({ error: 'URL and pincode are required' });
   }
-  console.log(`Scraping ${url} for pincode ${pincode}`);
-  const index = getIndex();
+
   try {
-    const key = `${url}:${pincode}`;
-    if (fetchNew) {
-      const _index = ['dmart.in', 'jiomart.com'].findIndex((element) =>
-        url.includes(element)
+    const jobId = uuid();
+
+    if (schedulingTime) {
+      console.log(`Scheduling scrape for ${url} at ${schedulingTime}`);
+      await agenda.schedule(schedulingTime, 'scrape job', {
+        jobId,
+        url,
+        pincode,
+      });
+      return res.json({ message: 'Job scheduled successfully', jobId });
+    } else if (recurrence) {
+      // For recurring jobs
+      console.log(
+        `Creating recurring scrape for ${url} with recurrence ${recurrence}`
       );
-      if (_index === -1) {
-        return res.status(400).json({ error: 'Invalid URL' });
-      }
-      const jobId = url.includes('dmart.in')
-        ? await scrapeDMart(url, pincode)
-        : await scrapeJioMart(url, pincode);
-      if (key in index) {
-        try {
-          // Delete from disk
-          await fs.rm(`./jobs/${index[key]}`, {
-            recursive: true,
-            force: true
-          });
-          // Delete from memory too
-          delete scrapeJobs[index[key]];
-        } catch (deleteError) {
-          console.error('Error deleting old job data:', deleteError);
-          return res.status(500).json({ error: 'Error deleting old job data' });
-        }
-      }
-      index[key] = jobId;
-      await writeIndexFile(index);
-      return res.json({
+      await agenda.every(recurrence, 'scrape job', {
         jobId,
-        age: {
-          hours: 0,
-          minutes: 0
-        }
+        url,
+        pincode,
       });
-    }
-
-    if (index[key]) {
-      console.log('getting from cache');
-      const jobId = index[key];
-      const jobFilepath = path.join(__dirname, 'jobs', jobId);
-
-      // Get the creation time of the directory
-      const stats = await fs.stat(jobFilepath);
-      const creationTime = stats.birthtime;
-
-      const timeDiff = Date.now() - creationTime.getTime();
-
-      const hours = Math.floor(timeDiff / (1000 * 60 * 60));
-      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-
-      return res.json({
-        jobId,
-        age: {
-          hours,
-          minutes
-        }
-      });
+      return res.json({ message: 'Recurring job created successfully', jobId });
     } else {
-      // return a job ID immediately to help the client check the status
-      const _index = ['dmart.in', 'jiomart.com'].findIndex((element) =>
-        url.includes(element)
-      );
-      if (_index === -1) {
-        return res.status(400).json({ error: 'Invalid URL' });
-      }
-      const jobId = url.includes('dmart.in')
-        ? await scrapeDMart(url, pincode)
-        : await scrapeJioMart(url, pincode);
-      index[key] = jobId;
-      await writeIndexFile(index);
-      return res.json({
+      // Immediate scrape
+      console.log(`Starting immediate scrape for ${url}`);
+      await agenda.now('scrape job', {
         jobId,
-        age: {
-          hours: 0,
-          minutes: 0
-        }
+        url,
+        pincode,
       });
+      return res.json({ jobId, message: `Scraping started for ${url}` });
     }
   } catch (error) {
-    console.error('Scraping error:', error);
-    return res.status(500).json({ error: 'An error occurred while scraping' });
+    console.error('Error scraping:', error);
+    return res.status(500).json({ error: 'Error scraping' });
   }
 });
+
 // Endpoint to check the status of the scrape
-app.get('/status/:jobId', authMiddleware, async (req, res) => {
+
+app.get('/status/:jobId', async (req, res) => {
   const { jobId } = req.params;
+
   try {
-    const status = await getStatus(jobId);
-    return res.json(status);
+    const job = await agenda.jobs({ 'data.jobId': jobId });
+
+    if (!job || job.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    const jobData = job[0].attrs.data;
+    const nextRunAt = job[0].attrs.nextRunAt;
+    const repeatInterval = job[0].attrs.repeatInterval;
+    const lastFinishedAt = job[0].attrs.lastFinishedAt;
+    let status;
+    if (nextRunAt && nextRunAt > Date.now()) {
+      status = 'queued';
+    } else if (jobData.status === 'completed') {
+      status = 'completed';
+    } else if (jobData.status === 'failed') {
+      status = 'failed';
+    } else {
+      status = 'running';
+    }
+    // console.log(`Job Data: ${JSON.stringify(job[0].attrs, null, 2)}`); // Pretty print with 2-space indentation
+
+    const response = {
+      jobId,
+      status,
+      recurrence: repeatInterval || null, // Include recurrence information
+      nextRunAt: repeatInterval ? nextRunAt : null, // Set to null if not recurring
+      completedTime: status === 'completed' ? lastFinishedAt : null
+    };
+    // Include fail count and fail reason only if the status is 'failed'
+    if (jobData.failCount) {
+      response.failCount = job[0].attrs.data.failCount || 0;
+      response.failReason = job[0].attrs.data.failReason || null;
+      response.failedAt = job[0].attrs.data.failedAt || null;
+    }
+    return res.json(response);
   } catch (error) {
     console.error('Error getting status:', error);
     return res.status(500).json({ error: 'Error getting status' });
   }
 });
 
-app.get('/download/:jobId', authMiddleware, async (req, res) => {
+app.get('/download/:jobId', async (req, res) => {
   const { jobId } = req.params;
-  const index = getIndex();
-
   try {
-    console.log('checking in memory jobs');
-    // Get filename from stats
-    const stats = await fs.readFile(`./jobs/${jobId}/stats.json`, 'utf8');
-    const filename = (await JSON.parse(stats)).filename;
-    // Check if scrapeJobs[jobId] is defined
-    if (scrapeJobs[jobId]) {
-      if (scrapeJobs[jobId].status !== 'completed') {
-        return res.status(400).json({ error: 'Job is still in progress' });
-      }
-      return res.status(200).download(`./jobs/${jobId}/${filename}.json`);
+    const scrapeData = await ScrapeData.findOne({ jobId });
+    if (!scrapeData) {
+      return res.status(404).json({ error: 'Data not found' });
     }
-
-    // If not found in scrapeJobs, check the index
-    console.log(index);
-    if (!index[Object.keys(index).find((key) => index[key] === jobId)]) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
-    res.download(`./jobs/${jobId}/${filename}.json`, (err) => {
-      if (err) {
-        console.error(`Error downloading file for job ${jobId}:`, err);
-        // Only send error response if headers haven't been sent yet
-        if (!res.headersSent) {
-          res.status(404).json({ error: 'Job data not found on disk' });
-        }
-      }
-    });
+    return res.json(scrapeData);
   } catch (error) {
-    console.log('An error occurred:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error downloading data:', error);
+    return res.status(500).json({ error: 'Error downloading data' });
   }
 });
-app.post('/stop/', authMiddleware, async (req, res) => {
+
+app.post('/stop/', async (req, res) => {
   const { jobId } = req.body;
-  const index = getIndex();
-  console.log(`job with id ${jobId} is being stopped`);
-  if (!scrapeJobs[jobId]) {
-    return res.status(200).json({ error: 'job not found' });
-  }
-  if (scrapeJobs[jobId].status === 'completed') {
-    return res.status(200).json({ error: 'Job already completed' });
-  }
-  scrapeJobs[jobId].status = 'cancelled';
-  // clean up the job
-  // delete from the index
-  for (const key in index) {
-    if (index[key] === jobId) {
-      delete index[key];
-    }
-  }
-  await writeIndexFile(index);
-  // delete the job from the disk
   try {
-    fs.rm(`./jobs/${jobId}`, {
-      recursive: true,
-      force: true
-    });
-  } catch (e) {
-    console.error('Error deleting job from disk:', e);
-    return res.status(500).json({
-      error: 'Error deleting job from disk'
-    });
+    const job = await agenda.jobs({ 'data.jobId': jobId });
+    if (!job || job.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    await job[0].remove();
+    return res.json({ message: 'Job stopped successfully' });
+  } catch (error) {
+    console.error('Error stopping job:', error);
+    return res.status(500).json({ error: 'Error stopping job' });
   }
-  return res.json({ success: true });
+});
+
+
+// now we want to make 2 endpoints 
+// one to list all the jobs with their status
+// the other to list all the recurrent jobs scraped data to allow the user download them
+
+// Endpoint to list all jobs
+app.get('/jobs', async (req, res) => {
+  try {
+    // get agenda jobs sorted by time
+    const agendaJobs = await agenda.jobs({}, { lastRunAt: -1 });
+    /*
+export type Job = {
+  id: string;
+  url: string;
+  pincode: string;
+  status: 'queued' | 'running' | 'success' | 'failed';
+  type: 'immediate' | 'scheduled' | 'recurring';
+  repeatInterval: string;
+  nextRunTime: string;
+  completedAt: string;
+  failedAt: string;
+  failReason: string;
+};
+    */
+    const jobs = agendaJobs.map((job) => {
+      const jobData = job.attrs.data;
+      const nextRunAt = job.attrs.nextRunAt;
+      const repeatInterval = job.attrs.repeatInterval;
+      const lastFinishedAt = job.attrs.lastFinishedAt;
+      let status;
+      if (nextRunAt && nextRunAt > Date.now()) {
+        status = 'queued';
+      } else if (jobData.status === 'completed') {
+        status = 'completed';
+      } else if (jobData.status === 'failed') {
+        status = 'failed';
+      } else {
+        status = 'running';
+      }
+      return {
+        jobId: jobData.jobId,
+        url: jobData.url,
+        pincode: jobData.pincode,
+        status,
+        type: repeatInterval ? 'recurring' : 'immediate',
+        repeatInterval: repeatInterval || null,
+        nextRunTime: repeatInterval ? nextRunAt : null,
+        completedAt: status === 'completed' ? lastFinishedAt : null,
+        failedAt: jobData.failedAt || null,
+        failReason: jobData.failReason || null
+      };
+    });
+    return res.json(jobs);
+   } catch (error) {
+    console.error('Error getting jobs:', error);
+    return res.status(500).json({ error: 'Error getting jobs' });
+  }
+});
+
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack); // Log the error stack trace for debugging
+  res.status(500).json({ error: 'Something went wrong!' }); // Send a consistent error response
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log('Server is running on port 3000');
-  // read the index data when the app starts and save it in a global var to be used
-  global.index = await readIndexFile();
   // connect to the database
   try {
     await mongoose.connect(process.env.DB_URL);
@@ -244,42 +284,5 @@ app.listen(PORT, async () => {
   } catch (error) {
     console.error('Error connecting to the database:', error);
   }
+  await agenda.start();
 });
-
-// Cron job to delete old jobs every day at midnight
-const deleteOldJobs = CronJob.from({
-  cronTime: '0 0 * * *',
-  onTick: async () => {
-    try {
-      console.log('Deleting old jobs');
-      const jobs = await fs.readdir('./jobs');
-      for (const job of jobs) {
-        const { birthtime } = await fs.promises.stat(`./jobs/${job}`);
-        const oneDay = 1000 * 60 * 60 * 24;
-        if (Date.now() - new Date(birthtime).getTime() > oneDay) {
-          // delete the job from in the in-memory DS
-          delete scrapeJobs[job];
-          await fs.promises.rm(`./jobs/${job}`, {
-            recursive: true,
-            force: true
-          });
-
-          // also delete the job from the index file
-          const index = getIndex();
-          for (const key in index) {
-            if (index[key] === job) {
-              delete index[key];
-            }
-          }
-          await writeIndexFile(index);
-        }
-      }
-    } catch (error) {
-      console.error('Error deleting old jobs:', error);
-    }
-  },
-  start: true
-});
-
-deleteOldJobs.start();
-

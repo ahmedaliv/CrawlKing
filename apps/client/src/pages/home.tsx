@@ -26,11 +26,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { CheckedState } from '@radix-ui/react-checkbox';
 import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
+import { DataTable } from '@/components/DataTable';
 export function Home() {
   const [site, setSite] = useState('');
   const [pincode, setPincode] = useState('');
   const [enableCache, setCacheState] = useState<CheckedState>(false);
-  const navigate = useNavigate(); // Add this for navigation
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const handleUnauthorizedError = () => {
     navigate('/login');
@@ -202,18 +203,18 @@ export function Home() {
     });
   };
   return (
-    <div className="flex size-full flex-col">
-      <div className="h-10 w-full bg-white">
+    <div className="flex size-full w-full flex-col">
+      <div className="h-10 w-full ">
         <Button
           variant={'ghost'}
           onClick={handleLogout}
           className="absolute right-4 top-0"
           size={'sm'}
         >
-          <LogOut fill="black" size={18} />
+          <LogOut size={18} />
         </Button>
       </div>
-      <div className="flex size-full flex-col gap-10 bg-slate-100 px-10 pt-7 sm:px-14 md:flex-row md:justify-between md:gap-20 md:px-24 lg:px-36">
+      <div className="flex size-full flex-col gap-10 px-10 pt-7 sm:px-14 md:flex-row md:justify-between md:gap-20 md:px-12 lg:px-24">
         <div className="flex md:w-2/5 lg:w-1/3">
           <div className="flex w-full flex-col gap-4">
             <div>
@@ -353,7 +354,7 @@ export function Home() {
               </TooltipProvider>
             )}
           </div>
-          <div className="size-full bg-white px-3 py-6">
+          <div className="size-full  px-3 py-6">
             {(isScrapingInProgress || isScrappingDone || isFailed) && (
               <div className="my-auto flex size-full flex-col space-y-5 p-4">
                 <span className="space-x-2">
@@ -373,6 +374,13 @@ export function Home() {
           </div>
         </div>
       </div>
+
+      <div className="flex size-full flex-col gap-10 px-10 pt-7 sm:px-14 md:flex-row md:justify-between md:gap-20 md:px-12 lg:px-24">
+        <div className="flex w-full">
+          <DataTable />
+        </div>
+      </div>
     </div>
   );
 }
+//url   pincode  status type repeatInterval nextRunTime completedAt failedAt failReason
