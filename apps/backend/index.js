@@ -168,7 +168,7 @@ app.get('/status/:jobId', async (req, res) => {
       completedTime: status === 'completed' ? lastFinishedAt : null
     };
     // Include fail count and fail reason only if the status is 'failed'
-    if (jobData.failCount) {
+    if (jobData.failCount && status != 'completed') {
       response.failCount = job[0].attrs.data.failCount || 0;
       response.failReason = job[0].attrs.data.failReason || null;
       response.failedAt = job[0].attrs.data.failedAt || null;
@@ -243,6 +243,8 @@ export type Job = {
         status = 'queued';
       } else if (jobData.status === 'completed') {
         status = 'completed';
+        jobData.failedAt = null;
+        jobData.failReason = null;
       } else if (jobData.status === 'failed') {
         status = 'failed';
       } else {
