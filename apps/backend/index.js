@@ -14,7 +14,7 @@ configDotenv();
 // MongoDB Schema for scraped data
 const scrapedDataSchema = new mongoose.Schema(
   {
-    jobId: { type: String, required: true},
+    jobId: { type: String, required: true },
     data: { type: Array }
   },
   { timestamps: true }
@@ -31,7 +31,6 @@ const agenda = new Agenda({
 const MAX_RETRIES = 3;
 agenda.define('scrape job', async (job) => {
   const { url, pincode, jobId } = job.attrs.data;
-
 
   try {
     console.log(`Starting scrape for ${url} at pincode ${pincode}`);
@@ -66,7 +65,7 @@ agenda.define('scrape job', async (job) => {
     } else {
       console.log(`Job failed for ${url}. Max retries reached.`);
       await job.fail(error.message); // Mark job as failed
-      // job.attrs.nextRunAt = null; 
+      // job.attrs.nextRunAt = null;
       job.attrs.data.status = 'failed';
       await job.save();
     }
@@ -102,18 +101,16 @@ app.post('/scrape', async (req, res) => {
       await agenda.schedule(schedulingTime, 'scrape job', {
         jobId,
         url,
-        pincode,
+        pincode
       });
       return res.json({ message: 'Job scheduled successfully', jobId });
     } else if (recurrence) {
       // For recurring jobs
-      console.log(
-        `Creating recurring scrape for ${url} with recurrence ${recurrence}`
-      );
+      console.log(`Creating recurring scrape for ${url} with recurrence ${recurrence}`);
       await agenda.every(recurrence, 'scrape job', {
         jobId,
         url,
-        pincode,
+        pincode
       });
       return res.json({ message: 'Recurring job created successfully', jobId });
     } else {
@@ -122,7 +119,7 @@ app.post('/scrape', async (req, res) => {
       await agenda.now('scrape job', {
         jobId,
         url,
-        pincode,
+        pincode
       });
       return res.json({ jobId, message: `Scraping started for ${url}` });
     }
@@ -209,8 +206,7 @@ app.post('/stop/', async (req, res) => {
   }
 });
 
-
-// now we want to make 2 endpoints 
+// now we want to make 2 endpoints
 // one to list all the jobs with their status
 // the other to list all the recurrent jobs scraped data to allow the user download them
 
@@ -264,7 +260,7 @@ export type Job = {
       };
     });
     return res.json(jobs);
-   } catch (error) {
+  } catch (error) {
     console.error('Error getting jobs:', error);
     return res.status(500).json({ error: 'Error getting jobs' });
   }

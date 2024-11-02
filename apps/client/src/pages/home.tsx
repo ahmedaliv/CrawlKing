@@ -1,3 +1,18 @@
+import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,15 +37,32 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
-import { Checkbox } from '@/components/ui/checkbox';
-import { CheckedState } from '@radix-ui/react-checkbox';
 import { useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { CalendarIcon, LogOut } from 'lucide-react';
 import { DataTable } from '@/components/DataTable';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns';
+import { TimePickerDemo } from '@/components/time-picker/time-picker-demo';
+
+const formSchema = z.object({
+  site: z.string().url(),
+  pincode: z.string(),
+  dateTime: z.date()
+});
+
+type FormSchemaType = z.infer<typeof formSchema>;
+
 export function Home() {
-  const [site, setSite] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [enableCache, setCacheState] = useState<CheckedState>(false);
+  const form = useForm<FormSchemaType>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      site: '',
+      pincode: '',
+      dateTime: new Date()
+    }
+  });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const handleUnauthorizedError = () => {
@@ -39,12 +71,12 @@ export function Home() {
     localStorage.removeItem('jobId');
   };
   const submitMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ site, pincode, dateTime }: FormSchemaType) => {
       const res = await client.post('scrape', {
         json: {
           url: site,
           pincode: pincode,
-          fetchNew: !enableCache
+          schedulingTime: dateTime
         },
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}` || ''
@@ -202,6 +234,12 @@ export function Home() {
       });
     });
   };
+
+  function onSubmit(data: FormSchemaType) {
+    console.log('🪵 [home.tsx:234] ~ token ~ \x1b[0;32mdata\x1b[0m = ', data);
+    submitMutation.mutate(data);
+  }
+
   return (
     <div className="flex size-full w-full flex-col">
       <div className="h-10 w-full ">
@@ -216,123 +254,169 @@ export function Home() {
       </div>
       <div className="flex size-full flex-col gap-10 px-10 pt-7 sm:px-14 md:flex-row md:justify-between md:gap-20 md:px-12 lg:px-24">
         <div className="flex md:w-2/5 lg:w-1/3">
-          <div className="flex w-full flex-col gap-4">
-            <div>
-              <Label>Site</Label>
-              <Input
-                value={site}
-                onChange={(e) => {
-                  setSite(e.target.value);
-                }}
-              ></Input>
-            </div>
-            <div>
-              <Label>Zip Code</Label>
-              <Input
-                value={pincode}
-                onChange={(e) => {
-                  setPincode(e.target.value);
-                }}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label>Enable Cache</Label>
-              <Checkbox
-                checked={enableCache}
-                onCheckedChange={(e) => {
-                  setCacheState(e);
-                }}
-              />
-            </div>
-            {!jobId ? (
-              <>
+          <Form {...form}>
+            <form
+              className="flex w-full flex-col gap-4"
+              onSubmit={form.handleSubmit(onSubmit)}
+            >
+              <div className="">
+                <div>
+                  <FormField
+                    control={form.control}
+                    name="site"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Site</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div>
+                    <FormField
+                      control={form.control}
+                      name="pincode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Zip Code</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <FormField
+                      control={form.control}
+                      name="dateTime"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel className="text-left">DateTime</FormLabel>
+                          <Popover>
+                            <FormControl>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    'w-[280px] justify-start text-left font-normal',
+                                    !field.value && 'text-muted-foreground'
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 size-4" />
+                                  {field.value ? (
+                                    format(field.value, 'PPP HH:mm:ss')
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                            </FormControl>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                initialFocus
+                              />
+                              <div className="border-t border-border p-3">
+                                <TimePickerDemo
+                                  setDate={field.onChange}
+                                  date={field.value}
+                                />
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+                {!jobId ? (
+                  <>
+                    <Button type="submit">Scrape</Button>
+                  </>
+                ) : (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button>Scrape</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>
+                          {isScrapingInProgress
+                            ? 'Scraping in progress'
+                            : 'Starting a new scrape will delete the previous data'}{' '}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <DialogDescription asChild>
+                        <div className="flex flex-col gap-2">
+                          <div>
+                            {isScrapingInProgress
+                              ? "Are you sure you want to start a new scraping request, this will stop the current request and you won't be able to retrieve it's data"
+                              : 'Starting a new scrape will delete the previous data. Are you sure you want to continue?'}
+                          </div>
+                          <div className="flex w-full gap-4">
+                            <DialogClose asChild>
+                              <Button
+                                onClick={async () => {
+                                  localStorage.removeItem('jobId');
+                                  await queryClient.resetQueries({
+                                    queryKey: ['progress']
+                                  });
+                                  queryClient.clear();
+                                  await client.post('stop', {
+                                    json: {
+                                      jobId: jobId
+                                    },
+                                    headers: {
+                                      Authorization:
+                                        `Bearer ${localStorage.getItem(
+                                          'token'
+                                        )}` || ''
+                                    }
+                                  });
+                                  // TODO: uncomment this again
+                                  // submitMutation.mutate();
+                                }}
+                              >
+                                Yes I'm sure
+                              </Button>
+                            </DialogClose>
+                            <DialogClose asChild>
+                              <Button>I've changed my mind</Button>
+                            </DialogClose>
+                          </div>
+                        </div>
+                      </DialogDescription>
+                    </DialogContent>
+                  </Dialog>
+                )}
                 <Button
+                  type="button"
+                  disabled={!isScrapingInProgress}
                   onClick={() => {
-                    submitMutation.mutate();
+                    stopMutation.mutate();
                   }}
                 >
-                  Scrape
+                  Stop
                 </Button>
-              </>
-            ) : (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button>Scrape</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {isScrapingInProgress
-                        ? 'Scraping in progress'
-                        : 'Starting a new scrape will delete the previous data'}{' '}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <DialogDescription asChild>
-                    <div className="flex flex-col gap-2">
-                      <div>
-                        {isScrapingInProgress
-                          ? "Are you sure you want to start a new scraping request, this will stop the current request and you won't be able to retrieve it's data"
-                          : 'Starting a new scrape will delete the previous data. Are you sure you want to continue?'}
-                      </div>
-                      <div className="flex w-full gap-4">
-                        <DialogClose asChild>
-                          <Button
-                            onClick={async () => {
-                              localStorage.removeItem('jobId');
-                              await queryClient.resetQueries({
-                                queryKey: ['progress']
-                              });
-                              queryClient.clear();
-                              await client.post('stop', {
-                                json: {
-                                  jobId: jobId
-                                },
-                                headers: {
-                                  Authorization:
-                                    `Bearer ${localStorage.getItem('token')}` ||
-                                    ''
-                                }
-                              });
-                              submitMutation.mutate();
-                            }}
-                          >
-                            Yes I'm sure
-                          </Button>
-                        </DialogClose>
-                        <DialogClose asChild>
-                          <Button>I've changed my mind</Button>
-                        </DialogClose>
-                      </div>
-                    </div>
-                  </DialogDescription>
-                </DialogContent>
-              </Dialog>
-            )}
-            <Button
-              disabled={!isScrapingInProgress}
-              onClick={() => {
-                stopMutation.mutate();
-              }}
-            >
-              Stop
-            </Button>
-          </div>
+              </div>
+            </form>
+          </Form>
         </div>
         <div className="flex size-full flex-col space-y-4 pb-10 md:h-1/2">
           <div className="flex items-center justify-between gap-5">
             <h2>Results</h2>
             {isFailed ? (
-              <Button
-                onClick={() => {
-                  submitMutation.mutate();
-                }}
-              >
-                Retry
-              </Button>
+              <Button type="submit">Retry</Button>
             ) : (
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
-                  <TooltipTrigger>
+                  <TooltipTrigger asChild>
                     <Button
                       className={clsx({
                         'opacity-50 pointer-events-none cursor-not-allowed':

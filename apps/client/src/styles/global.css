@@ -8,7 +8,7 @@
        URL: https://gradient.page */
 
     /* CSS: .bg-gradient { background: var(--gradient) } */
-    --gradient: linear-gradient(to top left,#24C6DC,#514A9D);
+    --gradient: linear-gradient(to top left, #24c6dc, #514a9d);
 
     --background: 199 47.449999999999996% 4%;
     --foreground: 199 7.3% 97.5%;
@@ -38,7 +38,7 @@
     --destructive-foreground: 199 7.3% 97.5%;
 
     --ring: 199 73% 50%;
-}
+  }
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
