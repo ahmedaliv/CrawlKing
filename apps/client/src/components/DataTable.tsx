@@ -114,6 +114,19 @@ export const columns = [
     cell: ({ row }) => <div className="capitalize">{row.getValue('type')}</div>
   },
   {
+    accessorKey: 'download',
+    header: 'Download',
+    cell: ({ row }) => (
+      // check if status is completed first
+      <Button
+        onClick={() => handleExport(row)}
+        disabled={row.original.status !== 'completed'}
+      >
+        Download
+      </Button>
+    )
+  },
+  {
     accessorKey: 'repeatInterval',
     header: 'Repeat Interval',
     cell: ({ row }) => (
@@ -149,19 +162,6 @@ export const columns = [
     )
   },
   //TODO: implement download,retry queries
-  {
-    accessorKey: 'download',
-    header: 'Download',
-    cell: ({ row }) => (
-      // check if status is completed first
-      <Button
-        onClick={() => handleExport(row)}
-        disabled={row.original.status !== 'completed'}
-      >
-        Download
-      </Button>
-    )
-  },
   {
     accessorKey: 'retry',
     header: 'Retry',

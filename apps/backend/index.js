@@ -30,7 +30,7 @@ const agenda = new Agenda({
 // Define the scraping job
 const MAX_RETRIES = 3;
 agenda.define('scrape job', async (job) => {
-  const { url, pincode, jobId } = job.attrs.data;
+  const { url, pincode, jobId, type } = job.attrs.data;
 
   try {
     console.log(`Starting scrape for ${url} at pincode ${pincode}`);
@@ -59,7 +59,9 @@ agenda.define('scrape job', async (job) => {
 
     // If we have not reached the maximum number of retries, reschedule the job
     if (job.attrs.data.failCount < MAX_RETRIES) {
-      console.log(`Retrying job for ${url}, attempt ${job.attrs.data.failCount}`);
+      console.log(
+        `Retrying job for ${url}, attempt ${job.attrs.data.failCount}`
+      );
       await job.schedule('in 10 seconds'); // Reschedule job to run again after 5 minutes
       await job.save();
     } else {
@@ -95,31 +97,39 @@ app.post('/scrape', async (req, res) => {
 
   try {
     const jobId = uuid();
-
+    let type = 'immediate';
     if (schedulingTime) {
       console.log(`Scheduling scrape for ${url} at ${schedulingTime}`);
+      type = 'scheduled';
       await agenda.schedule(schedulingTime, 'scrape job', {
         jobId,
         url,
-        pincode
+        pincode,
+        type
       });
       return res.json({ message: 'Job scheduled successfully', jobId });
     } else if (recurrence) {
       // For recurring jobs
-      console.log(`Creating recurring scrape for ${url} with recurrence ${recurrence}`);
+      console.log(
+        `Creating recurring scrape for ${url} with recurrence ${recurrence}`
+      );
+      type = 'recurring';
       await agenda.every(recurrence, 'scrape job', {
         jobId,
         url,
-        pincode
+        pincode,
+        type
       });
       return res.json({ message: 'Recurring job created successfully', jobId });
     } else {
       // Immediate scrape
       console.log(`Starting immediate scrape for ${url}`);
+      type = 'immediate';
       await agenda.now('scrape job', {
         jobId,
         url,
-        pincode
+        pincode,
+        type
       });
       return res.json({ jobId, message: `Scraping started for ${url}` });
     }
@@ -215,20 +225,6 @@ app.get('/jobs', async (req, res) => {
   try {
     // get agenda jobs sorted by time
     const agendaJobs = await agenda.jobs({}, { lastRunAt: -1 });
-    /*
-export type Job = {
-  id: string;
-  url: string;
-  pincode: string;
-  status: 'queued' | 'running' | 'success' | 'failed';
-  type: 'immediate' | 'scheduled' | 'recurring';
-  repeatInterval: string;
-  nextRunTime: string;
-  completedAt: string;
-  failedAt: string;
-  failReason: string;
-};
-    */
     const jobs = agendaJobs.map((job) => {
       const jobData = job.attrs.data;
       const nextRunAt = job.attrs.nextRunAt;
@@ -251,7 +247,7 @@ export type Job = {
         url: jobData.url,
         pincode: jobData.pincode,
         status,
-        type: repeatInterval ? 'recurring' : 'immediate',
+        type: jobData.type,
         repeatInterval: repeatInterval || null,
         nextRunTime: repeatInterval ? nextRunAt : null,
         completedAt: status === 'completed' ? lastFinishedAt : null,
