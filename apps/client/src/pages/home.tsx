@@ -46,6 +46,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { TimePickerDemo } from '@/components/time-picker/time-picker-demo';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { useToast } from '@/components/hooks/use-toast';
 
 const formSchema = z.object({
   site: z.string().url(),
@@ -53,12 +61,14 @@ const formSchema = z.object({
   dateTime: z.date(),
   immediate: z.boolean(),
   scheduled: z.boolean(),
-  recurring: z.boolean()
+  recurring: z.boolean(),
+  repeatInterval: z.string().optional()
 });
 
 type FormSchemaType = z.infer<typeof formSchema>;
 
 export function Home() {
+  const { toast } = useToast();
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -67,7 +77,8 @@ export function Home() {
       dateTime: new Date(Date.now() + 60 * 60 * 1000),
       immediate: true,
       scheduled: false,
-      recurring: false
+      recurring: false,
+      repeatInterval: 'daily'
     }
   });
   const navigate = useNavigate();
@@ -83,21 +94,25 @@ export function Home() {
       pincode,
       dateTime,
       scheduled,
-      recurring
+      recurring,
+      repeatInterval
     }: FormSchemaType) => {
       const payload: {
         url: string;
         pincode: string;
         schedulingTime?: Date;
         recurring?: boolean;
+        repeatInterval?: string;
       } = {
         url: site,
         pincode: pincode
       };
-      //TODO: maybe separate (recurring,scheduling) to different if conditions
       if (scheduled) {
         payload.schedulingTime = dateTime;
-        payload.recurring = recurring;
+        if (recurring) {
+          payload.recurring = true;
+          payload.repeatInterval = repeatInterval;
+        }
       }
       const res = await client.post('scrape', {
         json: payload,
@@ -106,13 +121,58 @@ export function Home() {
         },
         method: 'POST'
       });
-      return (await res.json()) as { jobId: string };
+      return (await res.json()) as { jobId: string; jobType: string };
     },
 
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       setHasConnectionError(false);
       localStorage.setItem('jobId', data.jobId);
+      localStorage.setItem('jobType', data.jobType);
+      setJobType(data.jobType);
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      // show toast message and reset form values if (scheduled or recurring)
+      if (variables.immediate) {
+        toast({
+          title: 'Scraping initiated',
+          description: 'Scraping has been initiated successfully'
+        });
+      } else if (variables.scheduled && !variables.recurring) {
+        form.reset({
+          site: '',
+          pincode: '',
+          dateTime: new Date(Date.now() + 60 * 60 * 1000),
+          immediate: true,
+          scheduled: false,
+          recurring: false,
+          repeatInterval: 'daily'
+        });
+        // add the scheduling time to the toast
+        toast({
+          title: 'Scraping scheduled',
+          description: `Scraping has been scheduled for ${format(
+            variables.dateTime,
+            'PPP HH:mm:ss'
+          )}`
+        });
+      } else {
+        form.reset({
+          site: '',
+          pincode: '',
+          dateTime: new Date(Date.now() + 60 * 60 * 1000),
+          immediate: true,
+          scheduled: false,
+          recurring: false,
+          repeatInterval: 'daily'
+        });
+        // add the scheduling time to the toast
+        toast({
+          title: 'Scraping scheduled',
+          description: `Scraping has been scheduled for ${format(
+            variables.dateTime,
+            'PPP HH:mm:ss'
+          )} and will repeat ${variables.repeatInterval}`
+        });
+      }
     },
     onError: async (error) => {
       const errorData = error.message;
@@ -139,14 +199,13 @@ export function Home() {
     }
   });
   let jobId = localStorage.getItem('jobId') || null;
+  const [jobType, setJobType] = useState(() => localStorage.getItem('jobType'));
   const [hasConnectionError, setHasConnectionError] = useState(false);
   const [fileName, setFileName] = useState<string>('data');
   const [previousStatus, setPreviousStatus] = useState<string | null>(null);
 
   const progressQuery = useQuery({
     retry: (failureCount, error) => {
-      console.log(failureCount, error);
-
       // Check if it's a network error
       if (error.message === 'Network error' || error instanceof TypeError) {
         // Stop retrying after 3 failures
@@ -154,7 +213,6 @@ export function Home() {
           setHasConnectionError(true); // Set connection error state
           // enable the retry button
           isFailed = true;
-          console.log('isFailed', isFailed);
           return false; // Prevent further retries
         }
         return true; // Retry for the first 3 failures
@@ -168,6 +226,7 @@ export function Home() {
       return (
         !!jobId &&
         !hasConnectionError &&
+        jobType === 'immediate' &&
         query &&
         query?.state?.data?.status !== 'completed' &&
         query?.state?.data?.status !== 'cancelled' &&
@@ -181,7 +240,6 @@ export function Home() {
         }
       });
       if (!res.ok) {
-        console.log(res.body);
         if (res.status === 401) {
           handleUnauthorizedError();
         }
@@ -269,10 +327,10 @@ export function Home() {
   };
 
   function onSubmit(data: FormSchemaType) {
-    console.log('🪵 [home.tsx:234] ~ token ~ \x1b[0;32mdata\x1b[0m = ', data);
     submitMutation.mutate(data);
   }
   const isScheduled = form.watch('scheduled');
+  const isRecurring = form.watch('recurring');
   return (
     <div className="flex size-full w-full flex-col">
       <div className="h-10 w-full ">
@@ -434,10 +492,38 @@ export function Home() {
                           </FormItem>
                         )}
                       />
+                      {isRecurring && (
+                        <FormField
+                          control={form.control}
+                          name="repeatInterval"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Repeat Interval</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue="daily"
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="daily">Daily</SelectItem>
+                                  <SelectItem value="weekly">Weekly</SelectItem>
+                                  <SelectItem value="monthly">
+                                    Monthly
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
-                <div className="flex flex-row justify-around">
+                <div className="flex flex-row justify-around pt-4">
                   {!jobId ? (
                     <>
                       <Button type="submit">Scrape</Button>
@@ -483,7 +569,9 @@ export function Home() {
                                       }
                                     });
                                     // TODO: uncomment this again
-                                    submitMutation.mutate();
+                                    submitMutation.mutate(
+                                      form.getValues() as FormSchemaType
+                                    );
                                   }}
                                 >
                                   Yes I'm sure
