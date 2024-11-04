@@ -8,8 +8,13 @@ import authMiddleware from './users/authMiddleware.js';
 import { configDotenv } from 'dotenv';
 import Agenda from 'agenda';
 import { uuid } from 'uuidv4';
+import moment from 'moment-timezone';
 
+// Load environment variables from .env file
 configDotenv();
+
+// Set the default time zone to Indian Standard Time (IST)
+moment.tz.setDefault('Asia/Kolkata');
 
 // MongoDB Schema for scraped data
 const scrapedDataSchema = new mongoose.Schema(
@@ -90,15 +95,18 @@ app.get('/validate-token', authMiddleware, (req, res) => {
 app.use('/users', userRoutes);
 
 app.post('/scrape', async (req, res) => {
-  const { url, pincode, schedulingTime, recurrence } = req.body; // Added recurrence
+  const { url, pincode, schedulingTime, recurring, repeatInterval } = req.body;
+
   if (!url || !pincode) {
     return res.status(400).json({ error: 'URL and pincode are required' });
   }
 
+  console.log(`body: ${JSON.stringify(req.body)}`);
   try {
     const jobId = uuid();
     let type = 'immediate';
-    if (schedulingTime) {
+
+    if (schedulingTime && !recurring) {
       console.log(`Scheduling scrape for ${url} at ${schedulingTime}`);
       type = 'scheduled';
       await agenda.schedule(schedulingTime, 'scrape job', {
@@ -107,20 +115,69 @@ app.post('/scrape', async (req, res) => {
         pincode,
         type
       });
-      return res.json({ message: 'Job scheduled successfully', jobId });
-    } else if (recurrence) {
+      return res.json({
+        message: 'Job scheduled successfully',
+        jobId,
+        jobType: type
+      });
+    } else if (recurring && repeatInterval) {
       // For recurring jobs
       console.log(
-        `Creating recurring scrape for ${url} with recurrence ${recurrence}`
+        `Creating recurring scrape for ${url} with interval ${repeatInterval}`
       );
       type = 'recurring';
-      await agenda.every(recurrence, 'scrape job', {
+
+      // Parse schedulingTime using moment.js to get the exact time
+      const scheduledMoment = moment(schedulingTime);
+
+      // Extract time components
+      const hour = scheduledMoment.format('HH'); // 24-hour format hour
+      const minute = scheduledMoment.format('mm'); // minute
+
+      // Schedule based on repeatInterval value
+      if (repeatInterval === 'daily') {
+        // Every day at the specific hour and minute
+        await agenda.every(`0 ${minute} ${hour} * * *`, 'scrape job', {
+          jobId,
+          url,
+          pincode,
+          type
+        });
+      } else if (repeatInterval === 'weekly') {
+        const dayOfWeek = scheduledMoment.format('d'); // 0 (Sunday) to 6 (Saturday)
+
+        // Every week on the specific day and time
+        await agenda.every(
+          `0 ${minute} ${hour} * * ${dayOfWeek}`,
+          'scrape job',
+          {
+            jobId,
+            url,
+            pincode,
+            type
+          }
+        );
+      } else if (repeatInterval === 'monthly') {
+        const dayOfMonth = scheduledMoment.format('D'); // Day of the month, 1-31
+
+        // Every month on the specific day and time
+        await agenda.every(
+          `0 ${minute} ${hour} ${dayOfMonth} * *`,
+          'scrape job',
+          {
+            jobId,
+            url,
+            pincode,
+            type
+          }
+        );
+      }
+
+      return res.json({
+        message: 'Recurring job created successfully',
         jobId,
-        url,
-        pincode,
-        type
+        jobType: type
       });
-      return res.json({ message: 'Recurring job created successfully', jobId });
     } else {
       // Immediate scrape
       console.log(`Starting immediate scrape for ${url}`);
@@ -131,7 +188,11 @@ app.post('/scrape', async (req, res) => {
         pincode,
         type
       });
-      return res.json({ jobId, message: `Scraping started for ${url}` });
+      return res.json({
+        message: `Scraping started for ${url}`,
+        jobId,
+        jobType: type
+      });
     }
   } catch (error) {
     console.error('Error scraping:', error);
@@ -216,10 +277,6 @@ app.post('/stop/', async (req, res) => {
   }
 });
 
-// now we want to make 2 endpoints
-// one to list all the jobs with their status
-// the other to list all the recurrent jobs scraped data to allow the user download them
-
 // Endpoint to list all jobs
 app.get('/jobs', async (req, res) => {
   try {
@@ -227,7 +284,7 @@ app.get('/jobs', async (req, res) => {
     const agendaJobs = await agenda.jobs({}, { lastRunAt: -1 });
     const jobs = agendaJobs.map((job) => {
       const jobData = job.attrs.data;
-      const nextRunAt = job.attrs.nextRunAt;
+      let nextRunAt = job.attrs.nextRunAt;
       const repeatInterval = job.attrs.repeatInterval;
       const lastFinishedAt = job.attrs.lastFinishedAt;
       let status;
@@ -242,6 +299,12 @@ app.get('/jobs', async (req, res) => {
       } else {
         status = 'running';
       }
+      if (jobData.type == 'immediate' && jobData.status == 'completed') {
+        nextRunAt = null;
+      }
+      if (jobData.type == 'scheduled' && jobData.status == 'completed') {
+        nextRunAt = null;
+      }
       return {
         jobId: jobData.jobId,
         url: jobData.url,
@@ -249,7 +312,7 @@ app.get('/jobs', async (req, res) => {
         status,
         type: jobData.type,
         repeatInterval: repeatInterval || null,
-        nextRunTime: repeatInterval ? nextRunAt : null,
+        nextRunAt: nextRunAt || null,
         completedAt: status === 'completed' ? lastFinishedAt : null,
         failedAt: jobData.failedAt || null,
         failReason: jobData.failReason || null
@@ -269,6 +332,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, async () => {
   console.log('Server is running on port 3000');
   // connect to the database
@@ -280,3 +344,4 @@ app.listen(PORT, async () => {
   }
   await agenda.start();
 });
+
