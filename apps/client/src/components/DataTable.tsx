@@ -25,9 +25,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -40,8 +37,9 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { useQuery } from '@tanstack/react-query';
-import clsx from 'clsx';
 import { apiPrefix } from '@/lib/client';
+import cronParser from 'cron-parser';
+import { format, parseISO } from 'date-fns';
 
 const data: Job[] = [
   {
@@ -51,7 +49,7 @@ const data: Job[] = [
     status: 'queued',
     type: 'immediate',
     repeatInterval: '',
-    nextRunTime: '',
+    nextRunAt: '',
     completedAt: '',
     failedAt: '',
     failReason: ''
@@ -66,7 +64,7 @@ export type Job = {
   status: 'queued' | 'running' | 'success' | 'failed';
   type: 'immediate' | 'scheduled' | 'recurring';
   repeatInterval: string;
-  nextRunTime: string;
+  nextRunAt: string;
   completedAt: string;
   failedAt: string;
   failReason: string;
@@ -129,47 +127,67 @@ export const columns = [
   {
     accessorKey: 'repeatInterval',
     header: 'Repeat Interval',
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue('repeatInterval')}</div>
-    )
+    cell: ({ row }) => {
+      const interval = row.getValue('repeatInterval');
+      // Convert the repeatInterval to a human-readable format
+      try {
+        const intervalDetails = cronParser.parseExpression(interval);
+        return (
+          <div className="capitalize">
+            {intervalDetails.next().toString()}{' '}
+            {/* Display the next run time */}
+          </div>
+        );
+      } catch (error) {
+        return <div className="capitalize"></div>;
+      }
+    }
   },
   {
-    accessorKey: 'nextRunTime',
-    header: 'Next Run Time',
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue('nextRunTime')}</div>
-    )
+    accessorKey: 'nextRunAt',
+    header: 'Next Run At',
+    cell: ({ row }) => {
+      const nextRunAt = row.getValue('nextRunAt');
+      // Check if nextRunTime is valid
+      if (nextRunAt) {
+        const nextRunDate = parseISO(nextRunAt);
+        const formattedDate = format(nextRunDate, 'MMMM dd, yyyy HH:mm:ss');
+        return <div className="capitalize">{formattedDate}</div>;
+      }
+      // If there is no nextRunTime value, return a fallback message
+      return <div className="capitalize">Not Scheduled</div>;
+    }
   },
   {
     accessorKey: 'completedAt',
     header: 'Completed At',
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue('completedAt')}</div>
-    )
+    cell: ({ row }) => {
+      const completedAtValue = row.getValue('completedAt');
+
+      // Check if completedAtValue is valid
+      if (completedAtValue) {
+        const completedAtDate = parseISO(completedAtValue);
+        const formattedDate = format(completedAtDate, 'MMMM dd, yyyy HH:mm:ss');
+        return <div className="capitalize">{formattedDate}</div>;
+      }
+
+      // If there is no completedAt value, return a fallback message
+      return <div className="capitalize">Not Completed</div>;
+    }
   },
   {
     accessorKey: 'failedAt',
     header: 'Failed At',
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue('failedAt')}</div>
-    )
+    cell: ({ row }) => {
+      const failedAt = new Date(row.getValue('failedAt'));
+      <div className="capitalize">{failedAt.toLocaleString()}</div>;
+    }
   },
   {
     accessorKey: 'failReason',
     header: 'Fail Reason',
     cell: ({ row }) => (
       <div className="capitalize">{row.getValue('failReason')}</div>
-    )
-  },
-  //TODO: implement download,retry queries
-  {
-    accessorKey: 'retry',
-    header: 'Retry',
-    cell: ({ row }) => (
-      <Button variant="ghost" className="size-8 p-0">
-        <span className="sr-only">Retry</span>
-        <DotsHorizontalIcon className="size-4" />
-      </Button>
     )
   }
 ];
