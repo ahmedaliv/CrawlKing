@@ -1,13 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
 import {
-  CaretSortIcon,
-  ChevronDownIcon,
-  DotsHorizontalIcon
-} from '@radix-ui/react-icons';
-import {
-  ColumnDef,
   ColumnFiltersState,
   SortingState,
   VisibilityState,
@@ -20,7 +15,6 @@ import {
 } from '@tanstack/react-table';
 
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -37,7 +31,7 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { useQuery } from '@tanstack/react-query';
-import { apiPrefix } from '@/lib/client';
+import { apiPrefix, client } from '@/lib/client';
 import cronParser from 'cron-parser';
 import { format, parseISO } from 'date-fns';
 
@@ -204,7 +198,11 @@ export function DataTable() {
   const getJobs = useQuery({
     queryKey: ['jobs'],
     queryFn: async () => {
-      const response = await fetch('http://localhost:3000/jobs');
+      const response = await client.get(`/jobs`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}` || ''
+        }
+      });
       return response.json();
     }
   });

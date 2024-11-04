@@ -1,7 +1,8 @@
-import express from 'express';
-import User from './User.js';
 import bcrypt from 'bcrypt';
+import express from 'express';
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+
 const router = express.Router();
 
 router.post('/register', async (req, res) => {
@@ -30,7 +31,7 @@ router.post('/login', async (req, res) => {
   }
   try {
     const user = await User.findOne({ username });
-  
+
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
