@@ -23,7 +23,6 @@ app.use(
     origin: process.env.FRONTEND_URL
   })
 );
-await connectDatabase();
 // Routes
 app.use('/api/users', userRoutes);
 
@@ -40,12 +39,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log('Server is running on port 3000');
   // connect to the database
+  await connectDatabase();
   await agenda.start();
 });
-
-// Graceful shutdown
-// process.on('SIGINT', async () => {
-//   console.log('Shutting down server...');
-//   await agenda.stop();
-//   process.exit(0);
-// });

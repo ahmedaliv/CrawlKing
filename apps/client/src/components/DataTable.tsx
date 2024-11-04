@@ -198,7 +198,7 @@ export function DataTable() {
   const getJobs = useQuery({
     queryKey: ['jobs'],
     queryFn: async () => {
-      const response = await client.get(`/jobs`, {
+      const response = await fetch(`${apiPrefix}/jobs`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}` || ''
         }
