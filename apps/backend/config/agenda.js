@@ -1,6 +1,7 @@
 import Agenda from 'agenda';
-
+import { configDotenv } from 'dotenv';
 // Setup Agenda
+configDotenv();
 const agenda = new Agenda({
   db: { address: process.env.DB_URL, collection: 'agendaJobs' }
 });

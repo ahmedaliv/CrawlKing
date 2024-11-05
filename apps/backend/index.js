@@ -6,9 +6,9 @@ import agenda from './config/agenda.js';
 import { connectDatabase } from './config/database.js';
 import authMiddleware from './middlewares/authMiddleware.js';
 import errorMiddleware from './middlewares/errorMiddleware.js';
-import userRoutes from './routes/userRoutes.js';
-import scrapingRoutes from './routes/scrapingRoutes.js';
-
+import userRoutes from './routes/users.js';
+import scrapingRoutes from './routes/scrape.js';
+import jobsRoutes from './routes/jobs.js';
 // Load environment variables from .env file
 configDotenv();
 
@@ -16,16 +16,20 @@ configDotenv();
 moment.tz.setDefault('Asia/Kolkata');
 
 const app = express();
+
+app.disable('x-powered-by');
+
 app.use(express.json({ limit: '100mb' }));
 // cors
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL
+    origin: process.env.FRONTEND_URL,
+    exposedHeaders: ['Content-Disposition']
   })
 );
 // Routes
 app.use('/api/users', userRoutes);
-
+app.use('/api/jobs', jobsRoutes);
 app.use('/api', scrapingRoutes);
 
 app.get('/api/validate-token', authMiddleware, (req, res) => {

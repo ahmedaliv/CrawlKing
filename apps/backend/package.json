@@ -25,6 +25,7 @@
     "mongoose": "^8.5.2",
     "node-cron": "^3.0.3",
     "playwright": "^1.46.0",
+    "uuid": "^11.0.2",
     "uuidv4": "^6.2.13"
   },
   "devDependencies": {
