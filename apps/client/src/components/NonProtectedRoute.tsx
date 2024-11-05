@@ -1,7 +1,7 @@
+import { client } from '@/utils/client';
 import { useLayoutEffect, useState } from 'react';
-import { CrawlLoader } from './Loader';
 import { Navigate, useLocation } from 'react-router-dom';
-import { client } from '@/lib/client';
+import { CrawlLoader } from './Loader';
 
 type propsType = {
   children: React.ReactNode;

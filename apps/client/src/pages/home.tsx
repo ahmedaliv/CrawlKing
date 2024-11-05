@@ -1,26 +1,10 @@
-import { cn } from '@/lib/utils';
-import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@/components/ui/popover';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage
-} from '@/components/ui/form';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DataTable } from '@/components/DataTable';
+import { useToast } from '@/components/hooks/use-toast';
+import { TimePickerDemo } from '@/components/time-picker/time-picker-demo';
 import { Badge } from '@/components/ui/badge';
-import clsx from 'clsx';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogClose,
@@ -30,22 +14,22 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { apiPrefix, client } from '@/lib/client';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip';
-import { useNavigate } from 'react-router-dom';
-import { CalendarIcon, LogOut } from 'lucide-react';
-import { DataTable } from '@/components/DataTable';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import { TimePickerDemo } from '@/components/time-picker/time-picker-demo';
-import { Checkbox } from '@/components/ui/checkbox';
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -53,7 +37,24 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { useToast } from '@/components/hooks/use-toast';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { client } from '@/utils/client';
+import { exportJob } from '@/utils/exportUtil';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import clsx from 'clsx';
+import { format } from 'date-fns';
+import { CalendarIcon, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
+import { z } from 'zod';
 
 const formSchema = z.object({
   site: z.string().url(),
@@ -181,9 +182,15 @@ export function Home() {
       }
     }
   });
+  const onDownloadClick = () => {
+    const jobId = submitMutation?.data?.jobId;
+    if (jobId) {
+      exportJob(jobId, toast);
+    }
+  };
   const stopMutation = useMutation({
     mutationFn: async () => {
-      const res = await client.post('stop', {
+      const res = await client.post('jobs/stop', {
         json: {
           jobId: localStorage.getItem('jobId')
         },
@@ -201,7 +208,6 @@ export function Home() {
   let jobId = localStorage.getItem('jobId') || null;
   const [jobType, setJobType] = useState(() => localStorage.getItem('jobType'));
   const [hasConnectionError, setHasConnectionError] = useState(false);
-  const [fileName, setFileName] = useState<string>('data');
   const [previousStatus, setPreviousStatus] = useState<string | null>(null);
 
   const progressQuery = useQuery({
@@ -234,7 +240,7 @@ export function Home() {
       );
     },
     queryFn: async () => {
-      const res = await client.get(`status/${jobId}`, {
+      const res = await client.get(`jobs/status/${jobId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}` || ''
         }
@@ -247,9 +253,7 @@ export function Home() {
       const json = (await res.json()) as {
         status: 'running' | 'completed' | 'cancelled' | 'failed' | 'unknown';
         progress: number;
-        total_products: number;
-        filename?: string;
-        duration?: number;
+        totalProducts: number | string;
       };
       if (json.status !== previousStatus) {
         setPreviousStatus(json.status);
@@ -260,10 +264,6 @@ export function Home() {
         }
       }
 
-      // check the status , if completed put the fileName in a variable
-      if (json.status === 'completed' && json.filename) {
-        setFileName(json.filename);
-      }
       if ((json as unknown as Record<string, unknown>).error) {
         if (localStorage.getItem('jobId') !== submitMutation.data?.jobId)
           localStorage.removeItem('jobId');
@@ -309,22 +309,6 @@ export function Home() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [navigate]);
-  const handleExport = () => {
-    fetch(`${apiPrefix}/download/${submitMutation?.data?.jobId}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}` || ''
-      }
-    }).then((response) => {
-      response.blob().then((blob) => {
-        const fileURL = window.URL.createObjectURL(blob);
-        // Setting various property values
-        const alink = document.createElement('a');
-        alink.href = fileURL;
-        alink.download = fileName;
-        alink.click();
-      });
-    });
-  };
 
   function onSubmit(data: FormSchemaType) {
     submitMutation.mutate(data);
@@ -557,7 +541,7 @@ export function Home() {
                                       queryKey: ['progress']
                                     });
                                     queryClient.clear();
-                                    await client.post('stop', {
+                                    await client.post('jobs/stop', {
                                       json: {
                                         jobId: jobId
                                       },
@@ -568,7 +552,6 @@ export function Home() {
                                           )}` || ''
                                       }
                                     });
-                                    // TODO: uncomment this again
                                     submitMutation.mutate(
                                       form.getValues() as FormSchemaType
                                     );
@@ -614,7 +597,7 @@ export function Home() {
                         'opacity-50 pointer-events-none cursor-not-allowed':
                           isExportDisabled
                       })}
-                      onClick={handleExport}
+                      onClick={onDownloadClick}
                     >
                       Export
                     </Button>
@@ -640,10 +623,18 @@ export function Home() {
                     {progressQuery?.data?.status.toLocaleUpperCase()}{' '}
                   </Badge>
                 </span>
-                <Progress value={progressQuery?.data?.progress ?? 0} />
+                <div>
+                  <Progress
+                    value={
+                      progressQuery?.data?.status == 'completed'
+                        ? 100
+                        : progressQuery?.data?.progress ?? 0
+                    }
+                  />
+                </div>
                 <span className="space-x-2">
                   <Label className="font-bold">Items Scraped So Far: </Label>{' '}
-                  <Badge>{progressQuery?.data?.total_products}</Badge>
+                  <Badge>{progressQuery?.data?.totalProducts}</Badge>
                 </span>
               </div>
             )}

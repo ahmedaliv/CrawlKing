@@ -1,15 +1,15 @@
-import { FormEvent, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { client } from '@/lib/client';
-import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { client } from '@/utils/client';
+import { useMutation } from '@tanstack/react-query';
+import { FormEvent, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 function Login() {
   const [username, setUsername] = useState('');
