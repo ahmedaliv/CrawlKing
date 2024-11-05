@@ -2,7 +2,37 @@ import express from 'express';
 import agenda from '../config/agenda.js';
 import ScrapeData from '../models/ScrapeData.js';
 
+const MAX_RETRIES = 3;
+
 const router = express.Router();
+
+router.post('/retry/:jobId', async (req, res) => {
+  const { jobId } = req.params;
+  try {
+    const job = await agenda.jobs({ 'data.jobId': jobId });
+    if (!job || job.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    // make sure it reached the max retries
+    if (job[0].attrs.data.failCount < MAX_RETRIES) {
+      return res.status(400).json({ error: 'Job has not reached max retries' });
+    }
+    // reset the status to retry
+    job[0].attrs.data.status = 'retrying';
+    job[0].attrs.data.failCount = 0;
+    job[0].attrs.data.failReason = null;
+    job[0].attrs.data.failedAt = null;
+    // Reschedule the job immediately or with a small delay
+    // await job[0].schedule('in 5 seconds'); // Adjust delay if needed
+    await job[0].save();
+    return res.json({ message: 'Job is being retried' });
+  } catch (error) {
+    console.error('Error retrying job:', error);
+    return res.status(500).json({ error: 'Error retrying job' });
+  }
+});
+  
+    
 
 // Endpoint to check the status of a job
 router.get('/status/:jobId', async (req, res) => {
@@ -103,6 +133,7 @@ router.get('/', async (req, res) => {
         repeatInterval: repeatInterval || null,
         nextRunAt: nextRunAt || null,
         completedAt: status === 'completed' ? lastFinishedAt : null,
+        failCount: jobData.failCount || 0,
         failedAt: jobData.failedAt || null,
         failReason: jobData.failReason || null
       };

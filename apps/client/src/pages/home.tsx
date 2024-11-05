@@ -44,7 +44,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { client } from '@/utils/client';
+import { apiPrefix, client } from '@/utils/client';
 import { exportJob } from '@/utils/exportUtil';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -205,6 +205,21 @@ export function Home() {
       jobId = null;
     }
   });
+  const retryJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await fetch(`${apiPrefix}/jobs/retry/${jobId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      return (await response.json()) as { message: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    }
+  });
+
   let jobId = localStorage.getItem('jobId') || null;
   const [jobType, setJobType] = useState(() => localStorage.getItem('jobType'));
   const [hasConnectionError, setHasConnectionError] = useState(false);
@@ -587,7 +602,16 @@ export function Home() {
           <div className="flex items-center justify-between gap-5">
             <h2>Results</h2>
             {isFailed ? (
-              <Button type="submit">Retry</Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (jobId) {
+                    retryJobMutation.mutate(jobId);
+                  }
+                }}
+              >
+                Retry
+              </Button>
             ) : (
               <TooltipProvider delayDuration={100}>
                 <Tooltip>

@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/table';
 import { apiPrefix } from '@/utils/client';
 import { exportJob } from '@/utils/exportUtil';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import cronParser from 'cron-parser';
 import { format, parseISO } from 'date-fns';
 import { useToast } from './hooks/use-toast';
@@ -57,7 +57,7 @@ export type Job = {
   id: string;
   url: string;
   pincode: string;
-  status: 'queued' | 'running' | 'success' | 'failed';
+  status: 'queued' | 'running' | 'failed' | 'completed' | 'retrying';
   type: 'immediate' | 'scheduled' | 'recurring';
   repeatInterval: string;
   nextRunAt: string;
@@ -70,8 +70,24 @@ export type Job = {
 
 export function DataTable() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const retryJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await fetch(`${apiPrefix}/jobs/retry/${jobId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      return (await response.json()) as { message: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    }
+  });
+
   const onExportClick = (row) => {
-    const jobId = row?.original?.id;
+    const jobId = row?.original?.jobId;
     exportJob(jobId, toast);
   };
   const columns = [
@@ -113,6 +129,29 @@ export function DataTable() {
           Download
         </Button>
       )
+    },
+    {
+      accessorKey: 'retry',
+      header: 'Reset & Auto-Retry',
+      cell: ({ row }) => {
+        const status = row.getValue('status');
+        const failCount = row.original.failCount || 0;
+        if (status === 'failed' && failCount >= 3) {
+          return (
+            <Button
+              onClick={() => retryJobMutation.mutate(row.original.jobId)}
+              disabled={
+                // retryJobMutation.isPending ||
+                // retryJobMutation.isSuccess ||
+                status === 'falied' || failCount < 3
+              }
+            >
+              Reset
+            </Button>
+          );
+        }
+        return null; // Only show button if conditions met
+      }
     },
     {
       accessorKey: 'repeatInterval',
@@ -166,6 +205,14 @@ export function DataTable() {
 
         // If there is no completedAt value, return a fallback message
         return <div className="capitalize">Not Completed</div>;
+      }
+    },
+    {
+      accessorKey: 'failCount',
+      header: 'Fail Count',
+      cell: ({ row }) => {
+        const failCount = row.original.failCount || 0;
+        return <div className="capitalize">{failCount}</div>;
       }
     },
     {
@@ -233,32 +280,43 @@ export function DataTable() {
           }
           className="max-w-sm"
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columns <ChevronDownIcon className="ml-2 size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="ml-auto ">
+          <Button
+            variant="outline"
+            className="mr-5"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['jobs'] });
+            }}
+          >
+            Refresh
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="ml-auto">
+                Columns <ChevronDownIcon className="ml-2 size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                      }
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <div className="rounded-md border">
         <Table>
