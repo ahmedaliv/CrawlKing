@@ -1,10 +1,6 @@
-import { appendFile } from 'fs/promises';
 import playwright from 'playwright';
-import { uuid } from 'uuidv4';
-// import { scrapeJobs } from '../index.js';
-import { appendToJsonFile } from '../utils/save.js';
-
-async function runJob(jobId, url, pincode) {
+import agenda from '../config/agenda.js';
+async function runJob(job,jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
     headless: false // Set to true for headless mode
   });
@@ -21,7 +17,6 @@ async function runJob(jobId, url, pincode) {
     } catch (error) {
       throw new Error(`Navigation to ${url} timed out after ${60} seconds`);
     }
-    
     // Handle location input (Pincode)
     const pincodeButton = page.locator('.dmart-icon-location').first();
     await pincodeButton.click();
@@ -39,10 +34,16 @@ async function runJob(jobId, url, pincode) {
     const categoryName = (await categoryNameElement.textContent())
       .replace(' ', '-')
       .toLowerCase();
+
+    const filename = `Dmart-${pincode}-${categoryName}-products`;
+
     // Wait for the page to load products
     await page.waitForTimeout(2000); // Wait for a short duration after confirmation
     // scrapeJobs[jobId].progress = 5;
-
+    // get the job from the database and update its progress
+    // const job = await agenda.jobs({ 'data.jobId': jobId });
+    job.attrs.data.progress = 5;
+    await job.save();
     // **Step 1: Get cookies after confirming pincode**
     const cookies = await context.cookies();
     const cookieString = cookies
@@ -102,7 +103,9 @@ async function runJob(jobId, url, pincode) {
     // Update scrape job progress and total products
     // scrapeJobs[jobId].total_products = totalProducts;
     // scrapeJobs[jobId].progress = 15;
-
+    job.attrs.data.total_products = totalProducts;
+    job.attrs.data.progress = 15;
+    await job.save();
     // Step 3 : Check if the number of products is > 500 , if yes fetch milestones (500 products at a time)
     let finalResponse;
     if (totalProducts > 500) {
@@ -123,6 +126,8 @@ async function runJob(jobId, url, pincode) {
         products.push(...milestoneData.products);
         // scrapeJobs[jobId].progress =
         //   15 + Math.ceil(((i + 1) * 85) / milestones);
+        job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / milestones);
+        await job.save();
       }
       finalResponse = { products };
     } else {
@@ -156,7 +161,9 @@ async function runJob(jobId, url, pincode) {
         pincode: Number(pincode)
       };
     });
-    return allProducts;
+    job.attrs.data.progress = 100;
+    await job.save();
+    return [allProducts, filename];
   } catch (error) {
     console.log(`Job ${jobId} failed with error: ${error.message}`);
     throw error;
@@ -166,8 +173,8 @@ async function runJob(jobId, url, pincode) {
   }
 }
 
-export async function main(jobId, url, pincode) {
-  return await runJob(jobId, url, pincode);
+export async function main(job,jobId, url, pincode) {
+  return await runJob(job, jobId, url, pincode);
 }
 
 // Function to transform the items
