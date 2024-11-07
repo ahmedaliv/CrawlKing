@@ -1,3 +1,5 @@
+# CrawlKing
+
 ## Getting Started
 
 ### Backend Setup
@@ -90,4 +92,3 @@ Contributions are welcome! Please submit a Pull Request for any enhancements or 
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
