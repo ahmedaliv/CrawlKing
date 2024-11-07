@@ -1,4 +1,4 @@
-import { client } from '@/lib/client';
+import { client } from '@/utils/client';
 import React, { useLayoutEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { CrawlLoader } from './Loader';

@@ -1,12 +1,8 @@
-import { appendFile } from 'fs/promises';
 import playwright from 'playwright';
-import { uuid } from 'uuidv4';
-import { scrapeJobs } from '../index.js';
-import { appendToJsonFile } from '../utils/save.js';
-
-async function runJob(jobId, url, pincode) {
+import agenda from '../config/agenda.js';
+async function runJob(job,jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: true // Set to true for headless mode
+    headless: false // Set to true for headless mode
   });
   const startTime = performance.now(); // Record the start time
 
@@ -14,16 +10,13 @@ async function runJob(jobId, url, pincode) {
     // Create a new Playwright context
     const context = await browser.newContext();
     const page = await context.newPage();
-
+    // throw new Error('trrrrrrrry')
     // Navigate to the target URL
     try {
       await page.goto(url, { timeout: 60 * 1000 });
     } catch (error) {
       throw new Error(`Navigation to ${url} timed out after ${60} seconds`);
     }
-    // Get the category name from the page
-    const categoryNameElement = page.locator('.product-grid_headerText__SxW_0').first();
-    const categoryName = (await categoryNameElement.textContent()).replace(' ', '-').toLowerCase();
     // Handle location input (Pincode)
     const pincodeButton = page.locator('.dmart-icon-location').first();
     await pincodeButton.click();
@@ -34,11 +27,23 @@ async function runJob(jobId, url, pincode) {
     await pinCode.click();
     const confirm = page.getByText('CONFIRM LOCATION').first();
     await confirm.click();
+    // Get the category name from the page
+    const categoryNameElement = page
+      .locator('.product-grid_headerText__SxW_0')
+      .first();
+    const categoryName = (await categoryNameElement.textContent())
+      .replace(' ', '-')
+      .toLowerCase();
+
+    const filename = `Dmart-${pincode}-${categoryName}-products`;
 
     // Wait for the page to load products
     await page.waitForTimeout(2000); // Wait for a short duration after confirmation
-    scrapeJobs[jobId].progress = 5;
-
+    // scrapeJobs[jobId].progress = 5;
+    // get the job from the database and update its progress
+    // const job = await agenda.jobs({ 'data.jobId': jobId });
+    job.attrs.data.progress = 5;
+    await job.save();
     // **Step 1: Get cookies after confirming pincode**
     const cookies = await context.cookies();
     const cookieString = cookies
@@ -96,9 +101,11 @@ async function runJob(jobId, url, pincode) {
     const totalProducts = initialData.totalRecords;
 
     // Update scrape job progress and total products
-    scrapeJobs[jobId].total_products = totalProducts;
-    scrapeJobs[jobId].progress = 15;
-
+    // scrapeJobs[jobId].total_products = totalProducts;
+    // scrapeJobs[jobId].progress = 15;
+    job.attrs.data.total_products = totalProducts;
+    job.attrs.data.progress = 15;
+    await job.save();
     // Step 3 : Check if the number of products is > 500 , if yes fetch milestones (500 products at a time)
     let finalResponse;
     if (totalProducts > 500) {
@@ -117,8 +124,10 @@ async function runJob(jobId, url, pincode) {
 
         const milestoneData = await finalResponse.json();
         products.push(...milestoneData.products);
-        scrapeJobs[jobId].progress =
-          15 + Math.ceil(((i + 1) * 85) / milestones);
+        // scrapeJobs[jobId].progress =
+        //   15 + Math.ceil(((i + 1) * 85) / milestones);
+        job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / milestones);
+        await job.save();
       }
       finalResponse = { products };
     } else {
@@ -149,54 +158,26 @@ async function runJob(jobId, url, pincode) {
           };
         }),
         url: `https://www.dmart.in/product/${product.seo_token_ntk}`,
-        pincode: Number(pincode),
+        pincode: Number(pincode)
       };
     });
-
-    // Save results
-    const filename = `Dmart-${pincode}-${categoryName}-products`; 
-    await appendToJsonFile(`./jobs/${jobId}/${filename}.json`, allProducts);
-    scrapeJobs[jobId] = {
-      url,
-      pincode,
-      status: 'completed',
-      progress: 100,
-      total_products: totalProducts,
-      filename
-    };
-    await appendFile(
-      `./jobs/${jobId}/stats.json`,
-      JSON.stringify(scrapeJobs[jobId], null, 2)
-    );
+    job.attrs.data.progress = 100;
+    await job.save();
+    return [allProducts, filename];
   } catch (error) {
     console.log(`Job ${jobId} failed with error: ${error.message}`);
-    scrapeJobs[jobId] = {
-      status: 'failed',
-      progress: 0,
-      error: error.message
-    };
+    throw error;
   } finally {
     await browser.close();
     const endTime = performance.now();
-    const duration = endTime - startTime;
-    console.log(
-      `Job ${jobId} ${scrapeJobs[jobId].status} in duration ${
-        duration / 1000
-      } seconds`
-    );
-    scrapeJobs[jobId].duration = duration / 1000;
   }
 }
 
-export async function main(url, pincode) {
-  const jobId = uuid();
-  scrapeJobs[jobId] = { status: 'running', progress: 0, total_products: 0 };
-  // Start the job asynchronously
-  runJob(jobId, url, pincode);
-  return jobId;
+export async function main(job,jobId, url, pincode) {
+  return await runJob(job, jobId, url, pincode);
 }
 
 // Function to transform the items
 export function getStatus(jobId) {
-  return scrapeJobs[jobId] || { status: 'unknown' };
+  // return scrapeJobs[jobId] || { status: 'unknown' };
 }
