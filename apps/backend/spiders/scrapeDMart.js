@@ -2,7 +2,7 @@ import playwright from 'playwright';
 import agenda from '../config/agenda.js';
 async function runJob(job,jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: false // Set to true for headless mode
+    headless: true // Set to true for headless mode
   });
   const startTime = performance.now(); // Record the start time
 
