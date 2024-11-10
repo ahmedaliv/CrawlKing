@@ -1,8 +1,8 @@
 'use client';
-
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import {
   ColumnFiltersState,
+  Row,
   SortingState,
   VisibilityState,
   flexRender,
@@ -30,63 +30,20 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { apiPrefix } from '@/utils/client';
 import { exportJob } from '@/utils/exportUtil';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import cronParser from 'cron-parser';
 import { format, parseISO } from 'date-fns';
 import { useToast } from './hooks/use-toast';
-
-const data: Job[] = [
-  {
-    id: 'm5gr84i9',
-    url: 'https://www.cowin.gov.in',
-    pincode: '110001',
-    status: 'queued',
-    type: 'immediate',
-    repeatInterval: '',
-    nextRunAt: '',
-    completedAt: '',
-    failedAt: '',
-    failReason: ''
-  }
-];
-
-//url   pincode  status type repeatInterval nextRunTime completedAt failedAt failReason
-export type Job = {
-  id: string;
-  url: string;
-  pincode: string;
-  status: 'queued' | 'running' | 'failed' | 'completed' | 'retrying';
-  type: 'immediate' | 'scheduled' | 'recurring';
-  repeatInterval: string;
-  nextRunAt: string;
-  completedAt: string;
-  failedAt: string;
-  failReason: string;
-};
-
+import { Job, JobStatus } from '@/utils/types';
+import { useFetchJobsQuery } from '@/api/queries';
+import { useRetryJobMutation } from '@/api/mutations';
 //url   pincode  status type repeatInterval nextRunTime completedAt failedAt failReason
 
 export function DataTable() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const retryJobMutation = useMutation({
-    mutationFn: async (jobId: string) => {
-      const response = await fetch(`${apiPrefix}/jobs/retry/${jobId}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
-      return (await response.json()) as { message: string };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
-    }
-  });
+  const retryJobMutation = useRetryJobMutation();
 
-  const onExportClick = (row) => {
+  const onExportClick = (row: Row<Job>) => {
     const jobId = row?.original?.jobId;
     exportJob(jobId, toast);
   };
@@ -94,33 +51,33 @@ export function DataTable() {
     {
       accessorKey: 'url',
       header: 'URL',
-      cell: ({ row }) => <div>{row.getValue('url')}</div>
+      cell: ({ row }: { row: Row<Job> }) => <div>{row.getValue('url')}</div>
     },
     {
       accessorKey: 'pincode',
       header: 'Pincode',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: Row<Job> }) => (
         <div className="capitalize">{row.getValue('pincode')}</div>
       )
     },
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: Row<Job> }) => (
         <div className="capitalize">{row.getValue('status')}</div>
       )
     },
     {
       accessorKey: 'type',
       header: 'Type',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: Row<Job> }) => (
         <div className="capitalize">{row.getValue('type')}</div>
       )
     },
     {
       accessorKey: 'download',
       header: 'Download',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: Row<Job> }) => (
         // check if status is completed first
         <Button
           onClick={() => onExportClick(row)}
@@ -133,8 +90,8 @@ export function DataTable() {
     {
       accessorKey: 'retry',
       header: 'Reset & Auto-Retry',
-      cell: ({ row }) => {
-        const status = row.getValue('status');
+      cell: ({ row }: { row: Row<Job> }) => {
+        const status: JobStatus = row.getValue('status');
         const failCount = row.original.failCount || 0;
         if (status === 'failed' && failCount >= 3) {
           return (
@@ -143,7 +100,7 @@ export function DataTable() {
               disabled={
                 // retryJobMutation.isPending ||
                 // retryJobMutation.isSuccess ||
-                status === 'falied' || failCount < 3
+                status === 'failed' || failCount < 3
               }
             >
               Reset
@@ -156,8 +113,8 @@ export function DataTable() {
     {
       accessorKey: 'repeatInterval',
       header: 'Repeat Interval',
-      cell: ({ row }) => {
-        const interval = row.getValue('repeatInterval');
+      cell: ({ row }: { row: Row<Job> }) => {
+        const interval = row.getValue('repeatInterval') as string;
         // Convert the repeatInterval to a human-readable format
         try {
           const intervalDetails = cronParser.parseExpression(interval);
@@ -175,11 +132,11 @@ export function DataTable() {
     {
       accessorKey: 'nextRunAt',
       header: 'Next Run At',
-      cell: ({ row }) => {
+      cell: ({ row }: { row: Row<Job> }) => {
         const nextRunAt = row.getValue('nextRunAt');
         // Check if nextRunTime is valid
         if (nextRunAt) {
-          const nextRunDate = parseISO(nextRunAt);
+          const nextRunDate = parseISO(nextRunAt as string);
           const formattedDate = format(nextRunDate, 'MMMM dd, yyyy HH:mm:ss');
           return <div className="capitalize">{formattedDate}</div>;
         }
@@ -190,12 +147,12 @@ export function DataTable() {
     {
       accessorKey: 'completedAt',
       header: 'Completed At',
-      cell: ({ row }) => {
+      cell: ({ row }: { row: Row<Job> }) => {
         const completedAtValue = row.getValue('completedAt');
 
         // Check if completedAtValue is valid
         if (completedAtValue) {
-          const completedAtDate = parseISO(completedAtValue);
+          const completedAtDate = parseISO(completedAtValue as string);
           const formattedDate = format(
             completedAtDate,
             'MMMM dd, yyyy HH:mm:ss'
@@ -210,7 +167,7 @@ export function DataTable() {
     {
       accessorKey: 'failCount',
       header: 'Fail Count',
-      cell: ({ row }) => {
+      cell: ({ row }: { row: Row<Job> }) => {
         const failCount = row.original.failCount || 0;
         return <div className="capitalize">{failCount}</div>;
       }
@@ -218,7 +175,7 @@ export function DataTable() {
     {
       accessorKey: 'failedAt',
       header: 'Failed At',
-      cell: ({ row }) => {
+      cell: ({ row }: { row: Row<Job> }) => {
         const failedAt = new Date(row.getValue('failedAt'));
         <div className="capitalize">{failedAt.toLocaleString()}</div>;
       }
@@ -226,7 +183,7 @@ export function DataTable() {
     {
       accessorKey: 'failReason',
       header: 'Fail Reason',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: Row<Job> }) => (
         <div className="capitalize">{row.getValue('failReason')}</div>
       )
     }
@@ -239,20 +196,10 @@ export function DataTable() {
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
-  const getJobs = useQuery({
-    queryKey: ['jobs'],
-    queryFn: async () => {
-      const response = await fetch(`${apiPrefix}/jobs`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}` || ''
-        }
-      });
-      return response.json();
-    }
-  });
+  const { data: Jobs } = useFetchJobsQuery();
 
   const table = useReactTable({
-    data: getJobs.data || [],
+    data: Jobs || [],
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,

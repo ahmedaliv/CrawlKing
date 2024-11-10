@@ -1,0 +1,1 @@
+export const FETCH_JOBS_QUERY = ['FETCH_JOBS_QUERY'];
