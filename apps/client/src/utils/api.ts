@@ -47,10 +47,11 @@ export const fetchJobProgress = async (
     }
 
     const json: JobProgressResponse = await res.json();
-    return json;
+    return json || { status: 'failed', progress: 0, totalProducts: '0' };
   } catch (error) {
     console.error('Error fetching job progress:', error);
     // throw error;
+    return { status: 'failed', progress: 0, totalProducts: '0' };
   }
 };
 
@@ -174,4 +175,35 @@ export const stopJob = async (jobId: string): Promise<StopJobResponse> => {
   }
 
   return (await response.json()) as StopJobResponse;
+};
+
+export const signIn = async ({
+  username,
+  password
+}: {
+  username: string;
+  password: string;
+}) => {
+  try {
+    const response = await client.post('users/login', {
+      json: { username, password },
+      method: 'post'
+    });
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Invalid username or password');
+      }
+      throw new Error(`An Unexpected Error Occurred`);
+    }
+    return (await response.json()) as { token: string };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    if (error.name === 'TypeError') {
+      throw new Error('Server is Down');
+    }
+    if (error.name === 'HTTPError' && error.response.status === 401) {
+      throw new Error('Invalid username or password');
+    }
+    throw new Error('An Unexpected Error Occurred');
+  }
 };

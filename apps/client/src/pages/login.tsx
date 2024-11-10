@@ -1,3 +1,4 @@
+import { useSignInMutation } from '@/api/mutations';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -6,65 +7,18 @@ import {
   CardTitle
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { client } from '@/utils/client';
-import { useMutation } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const signIn = async ({
-    username,
-    password
-  }: {
-    username: string;
-    password: string;
-  }) => {
-    try {
-      const response = await client.post('users/login', {
-        json: { username, password },
-        method: 'post'
-      });
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Invalid username or password');
-        }
-        throw new Error(`An Unexpected Error Occurred`);
-      }
-      return (await response.json()) as { token: string };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      if (error.name === 'TypeError') {
-        throw new Error('Server is Down');
-      }
-      if (error.name === 'HTTPError' && error.response.status === 401) {
-        throw new Error('Invalid username or password');
-      }
-      throw new Error('An Unexpected Error Occurred');
-    }
-  };
-  const mutation = useMutation({
-    mutationFn: signIn,
-    onSuccess: (data) => {
-      localStorage.setItem('token', data?.token || '');
-      const from = location.state?.from || '/';
-      navigate(from);
-    },
-    onError: (error) => {
-      // Set the error message state
-      setErrorMessage(error.message || 'An error occurred');
-    }
-  });
+  const signInMutation = useSignInMutation(setErrorMessage);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setErrorMessage(''); // Clear previous error message
-    mutation.mutate({ username, password });
+    signInMutation.mutate({ username, password });
   };
   return (
     <div className="flex h-screen w-full items-center justify-center px-4">
