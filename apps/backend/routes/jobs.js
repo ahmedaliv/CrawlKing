@@ -145,33 +145,58 @@ router.get('/', async (req, res) => {
     return res.status(500).json({ error: 'Error getting jobs' });
   }
 });
-
-// Endpoint to download scraped data
 router.get('/download/:jobId', async (req, res) => {
   const { jobId } = req.params;
 
   try {
-    const scrapeData = await ScrapeData.findOne({ jobId });
-    // get also data from the agendajobs collection
-    const job = await agenda.jobs({ 'data.jobId': jobId });
-    const fileName = job[0]?.attrs?.data?.fileName || `data-${jobId}.json`;
-
-    // Convert data to JSON string for file download
+    const scrapeData = await ScrapeData.findOne({ jobId }, { data: 1, _id: 0 });
 
     if (!scrapeData) {
       return res.status(404).json({ error: 'Data not found' });
     }
-    const dataToDownload = JSON.stringify(scrapeData, null, 2);
+
+    // Fetch the job from Agenda and extract the `fileName`
+    const job = await agenda.jobs({ 'data.jobId': jobId });
+    const fileName = job[0]?.attrs?.data?.fileName || `data-${jobId}.json`;
 
     // Set headers to indicate a file download with specified filename
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'application/json');
 
-    // Send the file content
-    return res.json(dataToDownload);
+    // Send only the `data` field as the response
+    return res.send(JSON.stringify(scrapeData.data, null, 2));
   } catch (error) {
     console.error('Error downloading data:', error);
     return res.status(500).json({ error: 'Error downloading data' });
   }
 });
+
+// // Endpoint to download scraped data
+// router.get('/download/:jobId', async (req, res) => {
+//   const { jobId } = req.params;
+
+//   try {
+//     const scrapeData = await ScrapeData.findOne({ jobId });
+//     // get also data from the agendajobs collection
+//     const job = await agenda.jobs({ 'data.jobId': jobId });
+//     const fileName = job[0]?.attrs?.data?.fileName || `data-${jobId}.json`;
+
+//     // Convert data to JSON string for file download
+
+//     if (!scrapeData) {
+//       return res.status(404).json({ error: 'Data not found' });
+//     }
+//     const dataToDownload = JSON.stringify(scrapeData, null, 2);
+
+//     // Set headers to indicate a file download with specified filename
+//     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+//     // Send the file content
+//     return res.json(dataToDownload);
+//   } catch (error) {
+//     console.error('Error downloading data:', error);
+//     return res.status(500).json({ error: 'Error downloading data' });
+//   }
+// });
 
 export default router;
