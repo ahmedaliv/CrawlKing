@@ -141,15 +141,6 @@ export function Home() {
           description: 'Scraping has been initiated successfully'
         });
       } else if (variables.scheduled && !variables.recurring) {
-        form.reset({
-          site: '',
-          pincode: '',
-          dateTime: new Date(Date.now() + 60 * 60 * 1000),
-          immediate: true,
-          scheduled: false,
-          recurring: false,
-          repeatInterval: 'daily'
-        });
         // add the scheduling time to the toast
         toast({
           title: 'Scraping scheduled',
@@ -159,15 +150,6 @@ export function Home() {
           )}`
         });
       } else {
-        form.reset({
-          site: '',
-          pincode: '',
-          dateTime: new Date(Date.now() + 60 * 60 * 1000),
-          immediate: true,
-          scheduled: false,
-          recurring: false,
-          repeatInterval: 'daily'
-        });
         // add the scheduling time to the toast
         toast({
           title: 'Scraping scheduled',
@@ -564,6 +546,7 @@ export function Home() {
                                       queryKey: ['progress']
                                     });
                                     if (isImmediate) {
+                                      console.log('stopping job');
                                       await client.post('jobs/stop', {
                                         json: {
                                           jobId: jobId

@@ -19,69 +19,54 @@ router.post('/scrape', async (req, res) => {
     if (schedulingTime && !recurring) {
       console.log(`Scheduling scrape for ${url} at ${schedulingTime}`);
       type = 'scheduled';
-      await agenda.schedule(schedulingTime, 'scrape job', {
-        jobId,
-        url,
-        pincode,
-        type
-      });
+      await agenda
+        .create('scrape job', {
+          jobId,
+          url,
+          pincode,
+          type
+        })
+        .unique({ url, pincode, schedulingTime }) // Ensure uniqueness
+        .schedule(schedulingTime)
+        .save();
+
       return res.json({
         message: 'Job scheduled successfully',
         jobId,
         jobType: type
       });
     } else if (recurring && repeatInterval) {
-      // For recurring jobs
       console.log(
         `Creating recurring scrape for ${url} with interval ${repeatInterval}`
       );
       type = 'recurring';
 
-      // Parse schedulingTime using moment.js to get the exact time
       const scheduledMoment = moment(schedulingTime);
+      const hour = scheduledMoment.format('HH');
+      const minute = scheduledMoment.format('mm');
 
-      // Extract time components
-      const hour = scheduledMoment.format('HH'); // 24-hour format hour
-      const minute = scheduledMoment.format('mm'); // minute
+      let interval = '';
 
-      // Schedule based on repeatInterval value
       if (repeatInterval === 'daily') {
-        // Every day at the specific hour and minute
-        await agenda.every(`0 ${minute} ${hour} * * *`, 'scrape job', {
+        interval = `0 ${minute} ${hour} * * *`;
+      } else if (repeatInterval === 'weekly') {
+        const dayOfWeek = scheduledMoment.format('d');
+        interval = `0 ${minute} ${hour} * * ${dayOfWeek}`;
+      } else if (repeatInterval === 'monthly') {
+        const dayOfMonth = scheduledMoment.format('D');
+        interval = `0 ${minute} ${hour} ${dayOfMonth} * *`;
+      }
+
+      await agenda
+        .create('scrape job', {
           jobId,
           url,
           pincode,
           type
-        });
-      } else if (repeatInterval === 'weekly') {
-        const dayOfWeek = scheduledMoment.format('d'); // 0 (Sunday) to 6 (Saturday)
-
-        // Every week on the specific day and time
-        await agenda.every(
-          `0 ${minute} ${hour} * * ${dayOfWeek}`,
-          'scrape job',
-          {
-            jobId,
-            url,
-            pincode,
-            type
-          }
-        );
-      } else if (repeatInterval === 'monthly') {
-        const dayOfMonth = scheduledMoment.format('D'); // Day of the month, 1-31
-
-        // Every month on the specific day and time
-        await agenda.every(
-          `0 ${minute} ${hour} ${dayOfMonth} * *`,
-          'scrape job',
-          {
-            jobId,
-            url,
-            pincode,
-            type
-          }
-        );
-      }
+        })
+        .unique({ url, pincode, interval }) // Ensure uniqueness
+        .repeatEvery(interval)
+        .save();
 
       return res.json({
         message: 'Recurring job created successfully',
