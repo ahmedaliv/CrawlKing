@@ -29,8 +29,8 @@ app.use(
 );
 // Routes
 app.use('/api/users', userRoutes);
-app.use('/api/jobs', jobsRoutes);
-app.use('/api', scrapingRoutes);
+app.use('/api/jobs', authMiddleware, jobsRoutes);
+app.use('/api', authMiddleware,scrapingRoutes);
 
 app.get('/api/validate-token', authMiddleware, (req, res) => {
   res.status(200).json({ message: 'Token is valid', user: req.user });
