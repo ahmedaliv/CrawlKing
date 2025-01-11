@@ -37,12 +37,14 @@ import { useToast } from './hooks/use-toast';
 import { Job, JobStatus } from '@/utils/types';
 import { useFetchJobsQuery } from '@/api/queries';
 import { useRetryJobMutation } from '@/api/mutations';
+import { useQueryClient } from '@tanstack/react-query';
+import { FETCH_JOBS_QUERY } from '@/constants/queryKeys';
 //url   pincode  status type repeatInterval nextRunTime completedAt failedAt failReason
 
 export function DataTable() {
   const { toast } = useToast();
   const retryJobMutation = useRetryJobMutation();
-
+  const queryClient = useQueryClient();
   const onExportClick = (row: Row<Job>) => {
     const jobId = row?.original?.jobId;
     exportJob(jobId, toast);
@@ -232,7 +234,7 @@ export function DataTable() {
             variant="outline"
             className="mr-5"
             onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['jobs'] });
+              queryClient.invalidateQueries({ queryKey: FETCH_JOBS_QUERY });
             }}
           >
             Refresh

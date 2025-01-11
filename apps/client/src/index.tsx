@@ -7,6 +7,7 @@ import Login from './pages/login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { NonProtectedRoute } from './components/NonProtectedRoute';
 import { Toaster } from '@/components/ui/toaster';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 const container = document.getElementById('root') as HTMLDivElement;
 const root = createRoot(container);
@@ -37,5 +38,6 @@ root.render(
   <QueryClientProvider client={queryClient}>
     <RouterProvider router={router} />
     <Toaster />
+    {/* <ReactQueryDevtools initialIsOpen={false} /> */}
   </QueryClientProvider>
 );

@@ -43,6 +43,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+import { FETCH_JOBS_QUERY } from '@/constants/queryKeys';
 import { cn } from '@/lib/utils';
 import { apiPrefix, client } from '@/utils/client';
 import { exportJob } from '@/utils/exportUtil';
@@ -124,13 +125,15 @@ export function Home() {
       });
       return (await res.json()) as { jobId: string; jobType: string };
     },
-
+    onMutate: () => {
+      queryClient.invalidateQueries({ queryKey: FETCH_JOBS_QUERY });
+    },
     onSuccess: (data, variables) => {
       setHasConnectionError(false);
       localStorage.setItem('jobId', data.jobId);
       localStorage.setItem('jobType', data.jobType);
       setJobType(data.jobType);
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: FETCH_JOBS_QUERY });
       // show toast message and reset form values if (scheduled or recurring)
       if (variables.immediate) {
         toast({
@@ -216,7 +219,7 @@ export function Home() {
       return (await response.json()) as { message: string };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: FETCH_JOBS_QUERY });
     }
   });
 
@@ -275,7 +278,7 @@ export function Home() {
 
         // If status changes to a terminal state, invalidate the `jobs` query
         if (['completed', 'cancelled', 'failed'].includes(json.status)) {
-          queryClient.invalidateQueries({ queryKey: ['jobs'] });
+          queryClient.invalidateQueries({ queryKey: FETCH_JOBS_QUERY });
         }
       }
 
@@ -326,6 +329,7 @@ export function Home() {
   }, [navigate]);
 
   function onSubmit(data: FormSchemaType) {
+    queryClient.invalidateQueries({ queryKey: ['jobs'] });
     submitMutation.mutate(data);
   }
   const isScheduled = form.watch('scheduled');
@@ -555,7 +559,9 @@ export function Home() {
                                     await queryClient.resetQueries({
                                       queryKey: ['progress']
                                     });
-                                    queryClient.clear();
+                                    await queryClient.invalidateQueries({
+                                      queryKey: FETCH_JOBS_QUERY
+                                    });
                                     await client.post('jobs/stop', {
                                       json: {
                                         jobId: jobId
