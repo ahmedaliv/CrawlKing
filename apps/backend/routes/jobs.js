@@ -172,7 +172,7 @@ router.get('/download/:jobId', async (req, res) => {
 });
 
 // endpoint delete jobs and its data
-router.delete('/all', async (req, res) => {
+router.delete('/', async (req, res) => {
   try {
     // Remove all jobs from Agenda
     const removedJobs = await agenda.cancel({});

@@ -36,9 +36,18 @@ import { format, parseISO } from 'date-fns';
 import { useToast } from './hooks/use-toast';
 import { Job, JobStatus } from '@/utils/types';
 import { useFetchJobsQuery } from '@/api/queries';
-import { useRetryJobMutation } from '@/api/mutations';
+import { useDeleteAllJobsMutation, useRetryJobMutation } from '@/api/mutations';
 import { useQueryClient } from '@tanstack/react-query';
 import { FETCH_JOBS_QUERY } from '@/constants/queryKeys';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
 //url   pincode  status type repeatInterval nextRunTime completedAt failedAt failReason
 
 export function DataTable() {
@@ -185,9 +194,10 @@ export function DataTable() {
     {
       accessorKey: 'failReason',
       header: 'Fail Reason',
-      cell: ({ row }: { row: Row<Job> }) => (
-        <div className="capitalize">{row.getValue('failReason')}</div>
-      )
+      cell: ({ row }: { row: Row<Job> }) =>
+        row.getValue('status') !== 'completed' && (
+          <div className="capitalize">{row.getValue('failReason')}</div>
+        )
     }
   ];
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -199,7 +209,7 @@ export function DataTable() {
   const [rowSelection, setRowSelection] = React.useState({});
 
   const { data: Jobs } = useFetchJobsQuery();
-
+  const deleteAllJobsMutation = useDeleteAllJobsMutation();
   const table = useReactTable({
     data: Jobs || [],
     columns,
@@ -239,6 +249,60 @@ export function DataTable() {
           >
             Refresh
           </Button>
+          {/* // delete all jobs button */}
+          {/* <button
+            variant="destructive"
+            classname="mr-5"
+            onclick={() => {
+              deletealljobsmutation.mutate();
+            }}
+          >
+            delete all jobs
+          </button> */}
+          {table.getFilteredRowModel().rows.length > 0 && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="destructive" className="mr-5">
+                  Delete All Jobs
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete All Jobs</DialogTitle>
+                </DialogHeader>
+                <DialogDescription asChild>
+                  <div className="flex flex-col gap-2 ">
+                    <div>Are you sure you want to delete all jobs?</div>
+                    <div className="flex w-full gap-4">
+                      <DialogClose asChild>
+                        <Button
+                          variant="destructive"
+                          onClick={async () => {
+                            deleteAllJobsMutation.mutate();
+                            queryClient.invalidateQueries({
+                              queryKey: FETCH_JOBS_QUERY
+                            });
+                            await queryClient.resetQueries({
+                              queryKey: [
+                                'progress',
+                                localStorage.getItem('jobId')
+                              ]
+                            });
+                            localStorage.removeItem('jobId');
+                          }}
+                        >
+                          Yes I'm sure
+                        </Button>
+                      </DialogClose>
+                      <DialogClose asChild>
+                        <Button>I've changed my mind</Button>
+                      </DialogClose>
+                    </div>
+                  </div>
+                </DialogDescription>
+              </DialogContent>
+            </Dialog>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="ml-auto">

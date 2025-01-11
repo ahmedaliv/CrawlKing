@@ -9,6 +9,22 @@ import {
 } from './types';
 import { JobProgressResponse } from './types';
 
+export const deleteAllJobs = async () => {
+  try {
+    const response = await fetch(`${apiPrefix}/jobs`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+      }
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete all jobs');
+    }
+  } catch (error) {
+    console.error('Error deleting all jobs:', error);
+    // throw error;
+  }
+};
 export const fetchJobs = async (): Promise<Job[]> => {
   try {
     const response = await fetch(`${apiPrefix}/jobs`, {
