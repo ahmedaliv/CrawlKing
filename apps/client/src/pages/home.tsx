@@ -334,6 +334,7 @@ export function Home() {
   }
   const isScheduled = form.watch('scheduled');
   const isRecurring = form.watch('recurring');
+  const isImmediate = form.watch('immediate');
   return (
     <div className="flex size-full w-full flex-col">
       <div className="h-10 w-full ">
@@ -527,7 +528,7 @@ export function Home() {
                   )}
                 </div>
                 <div className="flex flex-row justify-around pt-4">
-                  {!jobId ? (
+                  {!jobId || !isImmediate ? (
                     <>
                       <Button type="submit">Scrape</Button>
                     </>
@@ -555,24 +556,26 @@ export function Home() {
                               <DialogClose asChild>
                                 <Button
                                   onClick={async () => {
+                                    await queryClient.invalidateQueries({
+                                      queryKey: FETCH_JOBS_QUERY
+                                    });
                                     localStorage.removeItem('jobId');
                                     await queryClient.resetQueries({
                                       queryKey: ['progress']
                                     });
-                                    await queryClient.invalidateQueries({
-                                      queryKey: FETCH_JOBS_QUERY
-                                    });
-                                    await client.post('jobs/stop', {
-                                      json: {
-                                        jobId: jobId
-                                      },
-                                      headers: {
-                                        Authorization:
-                                          `Bearer ${localStorage.getItem(
-                                            'token'
-                                          )}` || ''
-                                      }
-                                    });
+                                    if (isImmediate) {
+                                      await client.post('jobs/stop', {
+                                        json: {
+                                          jobId: jobId
+                                        },
+                                        headers: {
+                                          Authorization:
+                                            `Bearer ${localStorage.getItem(
+                                              'token'
+                                            )}` || ''
+                                        }
+                                      });
+                                    }
                                     submitMutation.mutate(
                                       form.getValues() as FormSchemaType
                                     );
