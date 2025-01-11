@@ -171,6 +171,26 @@ router.get('/download/:jobId', async (req, res) => {
   }
 });
 
+// endpoint delete jobs and its data
+router.delete('/all', async (req, res) => {
+  try {
+    // Remove all jobs from Agenda
+    const removedJobs = await agenda.cancel({});
+    
+    // Remove all associated scrape data from MongoDB
+    await ScrapeData.deleteMany({});
+
+    return res.json({ 
+      message: 'All jobs and associated data removed successfully',
+      jobsRemoved: removedJobs
+    });
+  } catch (error) {
+    console.error('Error removing jobs and data:', error);
+    return res.status(500).json({ error: 'Error removing jobs and data' });
+  }
+});
+
+
 // // Endpoint to download scraped data
 // router.get('/download/:jobId', async (req, res) => {
 //   const { jobId } = req.params;
