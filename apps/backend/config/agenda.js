@@ -3,7 +3,9 @@ import { configDotenv } from 'dotenv';
 // Setup Agenda
 configDotenv();
 const agenda = new Agenda({
-  db: { address: process.env.DB_URL, collection: 'agendaJobs' }
+  db: { address: process.env.DB_URL, collection: 'agendaJobs' },
+  processEvery: '30 seconds',
+  maxConcurrency: 20,
 });
 
 agenda.on('ready', () => {
