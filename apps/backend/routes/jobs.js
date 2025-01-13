@@ -31,8 +31,6 @@ router.post('/retry/:jobId', async (req, res) => {
     return res.status(500).json({ error: 'Error retrying job' });
   }
 });
-  
-    
 
 // Endpoint to check the status of a job
 router.get('/status/:jobId', async (req, res) => {
@@ -47,7 +45,7 @@ router.get('/status/:jobId', async (req, res) => {
     const repeatInterval = job[0].attrs.repeatInterval;
     const lastFinishedAt = job[0].attrs.lastFinishedAt;
     const progress = job[0].attrs.data.progress || 0;
-    const totalProducts = job[0].attrs.data.total_products || "unknown";
+    const totalProducts = job[0].attrs.data.total_products || 'unknown';
 
     let status;
     if (nextRunAt && nextRunAt > Date.now()) {
@@ -124,19 +122,26 @@ router.get('/', async (req, res) => {
         nextRunAt = null;
       }
 
-      return {
+      const jobResponse = {
         jobId: jobData.jobId,
         url: jobData.url,
         pincode: jobData.pincode,
         status,
         type: jobData.type,
+        progress: jobData.progress || 0,
         repeatInterval: repeatInterval || null,
         nextRunAt: nextRunAt || null,
-        completedAt: status === 'completed' ? lastFinishedAt : null,
-        failCount: jobData.failCount || 0,
-        failedAt: jobData.failedAt || null,
-        failReason: jobData.failReason || null
+        completedAt: status === 'completed' ? lastFinishedAt : null
       };
+
+      // Only include failure-related fields if the status is not 'completed'
+      if (status !== 'completed') {
+        jobResponse.failCount = jobData.failCount || 0;
+        jobResponse.failedAt = jobData.failedAt || null;
+        jobResponse.failReason = jobData.failReason || null;
+      }
+
+      return jobResponse;
     });
 
     return res.json(jobs);
@@ -176,11 +181,11 @@ router.delete('/', async (req, res) => {
   try {
     // Remove all jobs from Agenda
     const removedJobs = await agenda.cancel({});
-    
+
     // Remove all associated scrape data from MongoDB
     await ScrapeData.deleteMany({});
 
-    return res.json({ 
+    return res.json({
       message: 'All jobs and associated data removed successfully',
       jobsRemoved: removedJobs
     });
@@ -189,7 +194,6 @@ router.delete('/', async (req, res) => {
     return res.status(500).json({ error: 'Error removing jobs and data' });
   }
 });
-
 
 // // Endpoint to download scraped data
 // router.get('/download/:jobId', async (req, res) => {

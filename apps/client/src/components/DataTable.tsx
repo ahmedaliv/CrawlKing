@@ -88,15 +88,18 @@ export function DataTable() {
     {
       accessorKey: 'download',
       header: 'Download',
-      cell: ({ row }: { row: Row<Job> }) => (
+      cell: ({ row }: { row: Row<Job> }) => {
         // check if status is completed first
-        <Button
-          onClick={() => onExportClick(row)}
-          disabled={row.original.status !== 'completed'}
-        >
-          Download
-        </Button>
-      )
+        const jobProgress = row.original.progress;
+        return (
+          <Button
+            onClick={() => onExportClick(row)}
+            disabled={jobProgress != 100 && row.original.status !== 'completed'}
+          >
+            Download
+          </Button>
+        );
+      }
     },
     {
       accessorKey: 'retry',
@@ -111,7 +114,7 @@ export function DataTable() {
               disabled={
                 // retryJobMutation.isPending ||
                 // retryJobMutation.isSuccess ||
-                status === 'failed' || failCount < 3
+                status !== 'failed' || failCount < 3
               }
             >
               Reset
@@ -172,7 +175,7 @@ export function DataTable() {
         }
 
         // If there is no completedAt value, return a fallback message
-        return <div className="capitalize">Not Completed</div>;
+        return <div className="capitalize"></div>;
       }
     },
     {

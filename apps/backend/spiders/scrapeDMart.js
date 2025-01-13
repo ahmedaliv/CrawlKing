@@ -1,6 +1,6 @@
 import playwright from 'playwright';
 import agenda from '../config/agenda.js';
-async function runJob(job,jobId, url, pincode) {
+async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
     headless: true // Set to true for headless mode
   });
@@ -166,14 +166,14 @@ async function runJob(job,jobId, url, pincode) {
     return [allProducts, filename];
   } catch (error) {
     console.log(`Job ${jobId} failed with error: ${error.message}`);
-    throw error;
+    return [[], null];
   } finally {
     await browser.close();
     const endTime = performance.now();
   }
 }
 
-export async function main(job,jobId, url, pincode) {
+export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }
 

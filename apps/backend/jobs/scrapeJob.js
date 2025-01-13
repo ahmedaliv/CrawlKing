@@ -13,7 +13,13 @@ export default function defineScrapeJob(agenda) {
       const scrapedData = url.includes('dmart.in')
         ? await scrapeDMart(job, jobId, url, pincode)
         : await scrapeJioMart(job, jobId, url, pincode);
-
+      if (
+        !scrapedData ||
+        !Array.isArray(scrapedData) ||
+        scrapedData.length < 1
+      ) {
+        throw new Error('Scraped data is invalid or empty');
+      }
       // Save scraped data to the database
       const scrapeResult = { jobId, data: scrapedData[0] };
       const savedScrape = new ScrapeData(scrapeResult);
@@ -25,7 +31,9 @@ export default function defineScrapeJob(agenda) {
       job.attrs.data.fileName = scrapedData[1];
       await job.save();
       console.log(`Scraping completed for ${url}`);
-      console.log(`job attrs from scrapejob ${job.attrs.data}`);
+      console.log(
+        `job attrs from scrapejob ${JSON.stringify(job.attrs.data, null, 2)}`
+      );
     } catch (error) {
       console.error('Error during scraping job:', error);
 
