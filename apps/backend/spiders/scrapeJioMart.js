@@ -6,7 +6,7 @@ import { appendToJsonFile } from '../utils/save.js';
 
 async function runJob(jobId, url, pincode,updateProgress) {
   const browser = await playwright.chromium.launch({
-    headless: false // Set to true for headless mode
+    headless: true // Set to true for headless mode
   });
   const startTime = performance.now(); // Record the start time
 
