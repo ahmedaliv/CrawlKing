@@ -14,9 +14,8 @@ RUN npm install -g pnpm
 RUN pnpm install
 
 # Install Playwright and its dependencies (with no cache)
-RUN pnpm add playwright
-RUN pnpm exec playwright install
 RUN pnpm exec playwright install-deps
+RUN pnpm exec playwright install
 
 # Copy the rest of the project files into the container
 COPY . .
