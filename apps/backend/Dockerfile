@@ -11,12 +11,12 @@ COPY package*.json ./
 RUN npm install -g pnpm
 
 # Install the project dependencies (with no cache)
-RUN pnpm install --no-cache
+RUN pnpm install
 
 # Install Playwright and its dependencies (with no cache)
-RUN pnpm add playwright --no-cache
-RUN pnpm exec playwright install --no-cache
-RUN pnpm exec playwright install-deps --no-cache
+RUN pnpm add playwright
+RUN pnpm exec playwright install
+RUN pnpm exec playwright install-deps
 
 # Copy the rest of the project files into the container
 COPY . .
