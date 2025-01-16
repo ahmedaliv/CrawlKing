@@ -1,0 +1,15 @@
+# Node modules directory
+node_modules/
+
+
+# Logs and temp files
+*.log
+*.tmp
+
+
+# Dockerfile (if not needed in the container)
+Dockerfile
+
+# Test and coverage directories (if applicable)
+tests/
+coverage/
