@@ -15,6 +15,7 @@
 
     ```bash
     pnpm install
+    pnpm exec playwright install
     ```
 
 3. **Set Up Environment Variables:**
