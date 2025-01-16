@@ -6,9 +6,9 @@ WORKDIR /usr/src/app
 
 # Copy package.json and package-lock.json (if available) to the working directory
 COPY package*.json ./
-
-# Install pnpm (with no cache)
-RUN npm install -g pnpm --no-cache
+ 
+# Install pnpm
+RUN npm install -g pnpm
 
 # Install the project dependencies (with no cache)
 RUN pnpm install --no-cache
