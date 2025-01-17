@@ -4,9 +4,9 @@ import { uuid } from 'uuidv4';
 // import { scrapeJobs } from '../index.js';
 import { appendToJsonFile } from '../utils/save.js';
 
-async function runJob(jobId, url, pincode, updateProgress) {
+async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: true // Set to true for headless mode
+    headless: false // Set to true for headless mode
   });
   const startTime = performance.now(); // Record the start time
 
@@ -15,6 +15,7 @@ async function runJob(jobId, url, pincode, updateProgress) {
     const context = await browser.newContext();
     const page = await context.newPage();
     // Navigate to the target URL
+    console.log("going to url", url);
     await page.goto(url);
     // scrapeJobs[jobId].progress = 5; // Initial progress
 
@@ -443,6 +444,7 @@ async function runJob(jobId, url, pincode, updateProgress) {
                   hitsPerPage: 1
                   // paginationLimitedTo: 1000000
                 });
+                console.log('Got data ', data.nbHits);
                 if (data.nbHits <= 1000 || to - from <= 1000) {
                   const data = await index.search('', {
                     filters: `itemId: ${from} TO ${to} AND ` + filters,
@@ -588,8 +590,8 @@ async function runJob(jobId, url, pincode, updateProgress) {
   }
 }
 
-export async function main(jobId, url, pincode, updateProgress) {
+export async function main(job, jobId, url, pincode) {
   // scrapeJobs[jobId] = { status: 'running', progress: 0, total_products: 0 };
   // Start the job asynchronously
-  return await runJob(jobId, url, pincode, updateProgress);
+  return await runJob(job, jobId, url, pincode);
 }
