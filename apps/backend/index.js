@@ -40,9 +40,25 @@ app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, async () => {
-  console.log('Server is running on port 3000');
-  // connect to the database
-  await connectDatabase();
-  await agenda.start();
-});
+const startServer = async () => {
+  try {
+    // Step 1: Connect to the database
+    await connectDatabase();
+    console.log('Database connection established');
+
+    // Step 2: Start Agenda
+    await agenda.start();
+    console.log('Agenda started successfully');
+
+    // Step 3: Start the Express server
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Error during server startup:', error);
+    process.exit(1); // Exit the process if there's an error
+  }
+};
+
+// Start the server
+startServer();
