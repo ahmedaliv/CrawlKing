@@ -45,7 +45,7 @@ router.get('/status/:jobId', async (req, res) => {
     const repeatInterval = job[0].attrs.repeatInterval;
     const lastFinishedAt = job[0].attrs.lastFinishedAt;
     const progress = job[0].attrs.data.progress || 0;
-    const totalProducts = job[0].attrs.data.total_products || 'unknown';
+    const totalProducts = job[0].attrs.data.total_products || 0;
 
     let status;
     if (nextRunAt && nextRunAt > Date.now()) {

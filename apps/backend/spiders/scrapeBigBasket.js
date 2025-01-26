@@ -1,7 +1,7 @@
 import playwright from 'playwright';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: false
+    headless: true,
   });
 
   try {
@@ -142,7 +142,6 @@ async function runJob(job, jobId, url, pincode) {
       // log the keys
       console.log(Object.keys(data));
       const totalProducts = data['tabs'][0]['product_info']['total_count'] 
-      job.attrs.data.total_products = totalProducts;
       job.attrs.data.progress = 15;
       await job.save();
       console.log(data['tabs'][0]['product_info']['number_of_pages']);
@@ -174,6 +173,7 @@ async function runJob(job, jobId, url, pincode) {
         totalScrapped = products.length
         console.log(`Total So Far:${totalScrapped}`)
         job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / milestones);
+        job.attrs.data.total_products = totalScrapped;
         await job.save();
       }
       const transformedProducts = products || [];

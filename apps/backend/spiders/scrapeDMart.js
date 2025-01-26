@@ -100,10 +100,6 @@ async function runJob(job, jobId, url, pincode) {
     const initialData = await initialResponse.json();
     const totalProducts = initialData.totalRecords;
 
-    // Update scrape job progress and total products
-    // scrapeJobs[jobId].total_products = totalProducts;
-    // scrapeJobs[jobId].progress = 15;
-    job.attrs.data.total_products = totalProducts;
     job.attrs.data.progress = 15;
     await job.save();
     // Step 3 : Check if the number of products is > 500 , if yes fetch milestones (500 products at a time)
@@ -121,11 +117,13 @@ async function runJob(job, jobId, url, pincode) {
             }
           }
         );
-
         const milestoneData = await finalResponse.json();
+        const totalProducts = milestoneData.totalRecords;
+
+        // Update scrape job progress and total products
+        job.attrs.data.total_products = totalProducts;
+        await job.save();
         products.push(...milestoneData.products);
-        // scrapeJobs[jobId].progress =
-        //   15 + Math.ceil(((i + 1) * 85) / milestones);
         job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / milestones);
         await job.save();
       }
@@ -140,7 +138,13 @@ async function runJob(job, jobId, url, pincode) {
           }
         }
       );
+
       const finalData = await finalResponse.json();
+      const totalProducts = finalData.totalRecords;
+
+      // Update scrape job progress and total products
+      job.attrs.data.total_products = totalProducts;
+      await job.save();
       finalResponse = finalData;
     }
 
