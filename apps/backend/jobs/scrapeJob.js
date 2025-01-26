@@ -7,11 +7,11 @@ const MAX_RETRIES = 3;
 
 const getScraper = (url) => {
   switch (true) {
-    case url.includes('https://www.bigbasket.com/'):
+    case url.includes('bigbasket.com'):
       return scrapeBigBasket;
-    case url.includes('https://dmart.in/'):
+    case url.includes('dmart.in'):
       return scrapeDMart;
-    case url.includes('https://www.jiomart.com/'):
+    case url.includes('jiomart.com'):
       return scrapeJioMart;
     default:
       throw new Error(`No scraper found for URL: ${url}`);
