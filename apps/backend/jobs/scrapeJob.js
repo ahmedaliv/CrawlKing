@@ -1,18 +1,30 @@
 import { main as scrapeDMart } from '../spiders/scrapeDMart.js';
 import { main as scrapeJioMart } from '../spiders/scrapeJioMart.js';
+import { main as scrapeBigBasket } from '../spiders/scrapeBigBasket.js';
 import ScrapeData from '../models/ScrapeData.js'; // Import ScrapeData model
 
 const MAX_RETRIES = 3;
 
+const getScraper = (url) => {
+  switch (true) {
+    case url.includes('https://www.bigbasket.com/'):
+      return scrapeBigBasket;
+    case url.includes('https://dmart.in/'):
+      return scrapeDMart;
+    case url.includes('https://www.jiomart.com/'):
+      return scrapeJioMart;
+    default:
+      throw new Error(`No scraper found for URL: ${url}`);
+  }
+};
 export default function defineScrapeJob(agenda) {
   agenda.define('scrape job', async (job) => {
     const { url, pincode, jobId, type } = job.attrs.data;
 
     try {
+      const scraper = getScraper(url);
+      const scrapedData = await scraper(job, jobId, url, pincode);
       console.log(`Starting scrape for ${url} at pincode ${pincode}`);
-      const scrapedData = url.includes('dmart.in')
-        ? await scrapeDMart(job, jobId, url, pincode)
-        : await scrapeJioMart(job, jobId, url, pincode);
       if (
         !scrapedData ||
         !Array.isArray(scrapedData) ||
