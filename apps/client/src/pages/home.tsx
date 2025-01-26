@@ -58,8 +58,8 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 const formSchema = z.object({
-  site: z.string().url(),
-  pincode: z.string(),
+  site: z.string().url({ message: 'Invalid URL.' }),
+  pincode: z.string().min(1, { message: 'Zip Code is required.' }),
   dateTime: z.date(),
   immediate: z.boolean(),
   scheduled: z.boolean(),

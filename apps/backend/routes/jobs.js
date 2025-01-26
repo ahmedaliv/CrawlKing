@@ -5,27 +5,42 @@ import ScrapeData from '../models/ScrapeData.js';
 const MAX_RETRIES = 3;
 
 const router = express.Router();
+const max_retries = 3; // Define your max retries
 
-router.post('/retry/:jobId', async (req, res) => {
-  const { jobId } = req.params;
+router.post('/retry/:jobid', async (req, res) => {
+  const { jobid } = req.params;
   try {
-    const job = await agenda.jobs({ 'data.jobId': jobId });
-    if (!job || job.length === 0) {
+    // Find the job by its custom job ID
+    const jobs = await agenda.jobs({ 'data.jobId': jobid });
+    if (!jobs || jobs.length === 0) {
       return res.status(404).json({ error: 'Job not found' });
     }
-    // make sure it reached the max retries
-    if (job[0].attrs.data.failCount < MAX_RETRIES) {
-      return res.status(400).json({ error: 'Job has not reached max retries' });
+
+    const job = jobs[0];
+
+    // Check if the job has reached max retries
+    // if (job.attrs.data.failCount < MAX_RETRIES) {
+    //   return res.status(400).json({ error: 'Job has not reached max retries' });
+    // }
+
+    // Check if the job is recurring (queued)
+    const isRecurring = job.attrs.repeatInterval;
+
+    // Reset the job status for retry
+    job.attrs.data.status = 'retrying';
+    job.attrs.data.failCount = 0;
+    job.attrs.data.failReason = null;
+    job.attrs.data.failedAt = null;
+
+    // For recurring jobs, ensure the repeatInterval is preserved
+    if (isRecurring) {
+      job.attrs.nextRunAt = new Date(); // Run the job immediately
+      job.attrs.lastRunAt = null; // Reset last run time
     }
-    // reset the status to retry
-    job[0].attrs.data.status = 'retrying';
-    job[0].attrs.data.failCount = 0;
-    job[0].attrs.data.failReason = null;
-    job[0].attrs.data.failedAt = null;
-    // Reschedule the job immediately or with a small delay
-    // await job[0].schedule('in 5 seconds'); // Adjust delay if needed
-    await job[0].save();
-    return res.json({ message: 'Job is being retried' });
+
+    await job.save();
+
+    return res.json({ message: 'Job is being retried', isRecurring });
   } catch (error) {
     console.error('Error retrying job:', error);
     return res.status(500).json({ error: 'Error retrying job' });
@@ -131,7 +146,9 @@ router.get('/', async (req, res) => {
         progress: jobData.progress || 0,
         repeatInterval: repeatInterval || null,
         nextRunAt: nextRunAt || null,
-        completedAt: status === 'completed' ? lastFinishedAt : null
+        lastFinishedAt:
+          status === 'completed' || status === 'queued' ? lastFinishedAt : null,
+        lastRunStatus: jobData.lastRunStatus
       };
 
       // Only include failure-related fields if the status is not 'completed'

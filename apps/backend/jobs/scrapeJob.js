@@ -23,8 +23,9 @@ export default function defineScrapeJob(agenda) {
 
     try {
       const scraper = getScraper(url);
-      const scrapedData = await scraper(job, jobId, url, pincode);
+      const [scrapedData,fileName] = await scraper(job, jobId, url, pincode);
       console.log(`Starting scrape for ${url} at pincode ${pincode}`);
+      console.log(scrapedData)
       if (
         !scrapedData ||
         !Array.isArray(scrapedData) ||
@@ -33,16 +34,23 @@ export default function defineScrapeJob(agenda) {
         throw new Error('Scraped data is invalid or empty');
       }
       // Save scraped data to the database
-      const scrapeResult = { jobId, data: scrapedData[0] };
+      const scrapeResult = { jobId, data: scrapedData };
       const savedScrape = new ScrapeData(scrapeResult);
       await savedScrape.save();
 
-      console.log(`job attrs from scrapejob ${job.attrs.data}`);
       // Update job status
       job.attrs.data.status = 'completed';
-      job.attrs.data.fileName = scrapedData[1];
-      await job.save();
+      job.attrs.data.fileName = fileName;
       console.log(`Scraping completed for ${url}`);
+      console.log(`resetting progress to 0`);
+      job.attrs.data.progress = 0;
+      if (type === 'recurring') {
+        job.attrs.data.lastRunStatus = 'completed';
+        console.log('setting lastRunStatus to comp.')
+      } else {
+        job.attrs.data.lastRunStatus = null;
+      }
+      await job.save();
       console.log(
         `job attrs from scrapejob ${JSON.stringify(job.attrs.data, null, 2)}`
       );

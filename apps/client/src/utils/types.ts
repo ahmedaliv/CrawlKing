@@ -42,6 +42,7 @@ export type Job = {
   failReason: string;
   failCount: number;
   progress: number;
+  lastRunStatus: string;
 };
 
 export interface SubmitScrapeJobPayload {

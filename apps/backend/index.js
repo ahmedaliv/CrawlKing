@@ -13,7 +13,7 @@ import jobsRoutes from './routes/jobs.js';
 configDotenv();
 
 // Set the default time zone to Indian Standard Time (IST)
-moment.tz.setDefault('Asia/Kolkata');
+// moment.tz.setDefault('Asia/Kolkata');
 
 const app = express();
 

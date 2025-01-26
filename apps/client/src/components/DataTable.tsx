@@ -89,32 +89,43 @@ export function DataTable() {
       accessorKey: 'download',
       header: 'Download',
       cell: ({ row }: { row: Row<Job> }) => {
-        // check if status is completed first
-        const jobProgress = row.original.progress;
+        const { progress, status, lastRunStatus, type } = row.original;
+
+        // Determine if the download button should be disabled
+        const isDownloadDisabled =
+          type === 'recurring'
+            ? lastRunStatus !== 'completed' // Only care about lastRunStatus for recurring jobs
+            : progress !== 100 && status !== 'completed'; // Apply other conditions for non-recurring jobs
+
         return (
           <Button
             onClick={() => onExportClick(row)}
-            disabled={jobProgress != 100 && row.original.status !== 'completed'}
+            disabled={isDownloadDisabled}
           >
             Download
           </Button>
         );
       }
     },
+
     {
       accessorKey: 'retry',
       header: 'Reset & Auto-Retry',
       cell: ({ row }: { row: Row<Job> }) => {
-        const status: JobStatus = row.getValue('status');
+        const { status, lastRunStatus, type } = row.original;
+
         const failCount = row.original.failCount || 0;
-        if (status === 'failed' && failCount >= 3) {
+        if ((status === 'failed' && failCount >= 3) || status === 'queued') {
           return (
             <Button
               onClick={() => retryJobMutation.mutate(row.original.jobId)}
               disabled={
-                // retryJobMutation.isPending ||
-                // retryJobMutation.isSuccess ||
-                status !== 'failed' || failCount < 3
+                type === 'recurring'
+                  ? status === 'queued' && lastRunStatus === 'completed'
+                  : status !== 'failed'
+                // (status === 'queued' && lastRunStatus === 'completed') ||
+                // status !== 'failed' ||
+                // failCount < 3
               }
             >
               Reset
@@ -159,10 +170,10 @@ export function DataTable() {
       }
     },
     {
-      accessorKey: 'completedAt',
-      header: 'Completed At',
+      accessorKey: 'lastFinishedAt',
+      header: 'Last Finished At',
       cell: ({ row }: { row: Row<Job> }) => {
-        const completedAtValue = row.getValue('completedAt');
+        const completedAtValue = row.getValue('lastFinishedAt');
 
         // Check if completedAtValue is valid
         if (completedAtValue) {
