@@ -10,7 +10,7 @@ async function runJob(job, jobId, url, pincode) {
     // Create a new Playwright context
     const context = await browser.newContext();
     const page = await context.newPage();
-    // throw new Error('trrrrrrrry')
+    page.setDefaultTimeout(60000 * 3);
     // Navigate to the target URL
     try {
       await page.goto(url, { timeout: 60 * 1000 });

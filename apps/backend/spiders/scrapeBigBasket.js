@@ -1,7 +1,7 @@
 import playwright from 'playwright';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: true,
+    headless: false
   });
 
   try {
@@ -10,6 +10,7 @@ async function runJob(job, jobId, url, pincode) {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     });
     const page = await context.newPage();
+    page.setDefaultTimeout(60000 * 3);
     await page.goto(url);
     await page.waitForSelector("section ul li[class*='PaginateItems']");
     // Handle location input (Pincode)
@@ -117,7 +118,7 @@ async function runJob(job, jobId, url, pincode) {
       requestUrl = requestUrl.replace(/page=\d+/, 'page=1');
       console.log(requestUrl);
       const headers = {
-        'accept': '*/*',
+        accept: '*/*',
         'accept-language': 'en-US,en;q=0.8',
         'cache-control': 'no-cache',
         'content-type': 'application/json',
@@ -131,7 +132,7 @@ async function runJob(job, jobId, url, pincode) {
         'sec-gpc': '1',
         'x-channel': 'BB-WEB',
         'x-tracker': '5d47e689-53b4-44bb-9171-46e2d037f06f',
-        'cookie': cookieString
+        cookie: cookieString
       };
       const response = await page.request.get(requestUrl, {
         headers: headers
@@ -141,7 +142,7 @@ async function runJob(job, jobId, url, pincode) {
       const data = await response.json();
       // log the keys
       console.log(Object.keys(data));
-      const totalProducts = data['tabs'][0]['product_info']['total_count'] 
+      const totalProducts = data['tabs'][0]['product_info']['total_count'];
       job.attrs.data.progress = 15;
       await job.save();
       console.log(data['tabs'][0]['product_info']['number_of_pages']);
@@ -150,7 +151,7 @@ async function runJob(job, jobId, url, pincode) {
         data['tabs'][0]['product_info']['number_of_pages']
       );
 
-      let totalScrapped = 0
+      let totalScrapped = 0;
       for (let i = 1; i <= milestones; i++) {
         requestUrl = requestUrl.replace(/page=\d+/, `page=${i}`);
         const response = await page.request.get(requestUrl, {
@@ -170,8 +171,8 @@ async function runJob(job, jobId, url, pincode) {
         const milestoneData = data['tabs'][0]['product_info']['products'];
         console.log(`Current Data len: ${milestoneData.length}`);
         products.push(...milestoneData);
-        totalScrapped = products.length
-        console.log(`Total So Far:${totalScrapped}`)
+        totalScrapped = products.length;
+        console.log(`Total So Far:${totalScrapped}`);
         job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / milestones);
         job.attrs.data.total_products = totalScrapped;
         await job.save();
@@ -222,4 +223,3 @@ async function runJob(job, jobId, url, pincode) {
 export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }
-
