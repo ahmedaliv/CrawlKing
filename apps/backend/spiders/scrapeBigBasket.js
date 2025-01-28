@@ -1,7 +1,7 @@
 import playwright from 'playwright';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: false
+    headless: true
   });
 
   try {
@@ -51,6 +51,7 @@ async function runJob(job, jobId, url, pincode) {
       console.error('Failed to load the page:', error);
       // Retry or handle the error
     }
+    let requestUrl = '';
     await page.route(/\/v2\/products\?.*/, (route) => {
       if (requestUrl === '') {
         requestUrl = route.request().url();
@@ -62,7 +63,6 @@ async function runJob(job, jobId, url, pincode) {
     });
     await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
     await page.waitForSelector("section ul li[class*='PaginateItems']");
-    let requestUrl = '';
     const categoryNameText = await page
       .locator("div[class*='Breadcrumb'] > div:last-of-type")
       .textContent();

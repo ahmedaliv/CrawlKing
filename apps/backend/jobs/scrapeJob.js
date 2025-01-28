@@ -1,6 +1,7 @@
 import { main as scrapeDMart } from '../spiders/scrapeDMart.js';
 import { main as scrapeJioMart } from '../spiders/scrapeJioMart.js';
 import { main as scrapeBigBasket } from '../spiders/scrapeBigBasket.js';
+import { main as scrapeBlinkit } from '../spiders/scrapeBlinkit.js';
 import ScrapeData from '../models/ScrapeData.js'; // Import ScrapeData model
 
 const MAX_RETRIES = 3;
@@ -13,6 +14,8 @@ const getScraper = (url) => {
       return scrapeDMart;
     case url.includes('jiomart.com'):
       return scrapeJioMart;
+    case url.includes('blinkit.com'):
+      return scrapeBlinkit;
     default:
       throw new Error(`No scraper found for URL: ${url}`);
   }
@@ -23,9 +26,8 @@ export default function defineScrapeJob(agenda) {
 
     try {
       const scraper = getScraper(url);
-      const [scrapedData,fileName] = await scraper(job, jobId, url, pincode);
       console.log(`Starting scrape for ${url} at pincode ${pincode}`);
-      console.log(scrapedData)
+      const [scrapedData, fileName] = await scraper(job, jobId, url, pincode);
       if (
         !scrapedData ||
         !Array.isArray(scrapedData) ||
@@ -42,11 +44,11 @@ export default function defineScrapeJob(agenda) {
       job.attrs.data.status = 'completed';
       job.attrs.data.fileName = fileName;
       console.log(`Scraping completed for ${url}`);
-      console.log(`resetting progress to 0`);
-      job.attrs.data.progress = 0;
       if (type === 'recurring') {
+        console.log(`resetting progress to 0`);
+        job.attrs.data.progress = 0;
         job.attrs.data.lastRunStatus = 'completed';
-        console.log('setting lastRunStatus to comp.')
+        console.log('setting lastRunStatus to comp.');
       } else {
         job.attrs.data.lastRunStatus = null;
       }
