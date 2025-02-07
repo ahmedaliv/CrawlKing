@@ -1,7 +1,7 @@
 import playwright from 'playwright';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: false
+    headless: true
   });
 
   try {
