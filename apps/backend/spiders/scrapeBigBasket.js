@@ -69,6 +69,9 @@ async function runJob(job, jobId, url, pincode) {
     const categoryName = categoryNameText
       .replace(',', ' ')
       .replace(' ', '-')
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/[&]/g, 'and') // Replace '&' with 'and'
+      .replace(/[^a-zA-Z0-9-_]/g, '') // Remove any other special characters
       .toLowerCase();
     const filename = `BigBasket-${pincode}-${categoryName}-products`;
     console.log(filename);

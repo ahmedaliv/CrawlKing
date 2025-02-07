@@ -1,9 +1,9 @@
 import playwright from 'playwright';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: false,
+    headless: true
   });
-/*
+  /*
 problems so far
 https://blinkit.com/cn/tomato-chilli-ketchup/cid/972/277
 
@@ -194,6 +194,10 @@ however the request being made is correct
 
     const totalPages = await findTotalPages(requestUrl);
     const products = [];
+    if (requestUrl) {
+      // change page to be 0
+      requestUrl = requestUrl.replace(/page=\d+/, 'page=0');
+    }
     let totalScrapped = 0;
     for (let i = 1; i <= totalPages; i++) {
       let res = await page.evaluate(
@@ -275,14 +279,44 @@ however the request being made is correct
       return url;
     }
 
-    const allProducts = products.map((product) => {
-      try {
-        return {
-          title: product?.tracking?.widget_meta?.title || '',
-          brand: product?.data?.product?.brand || '',
-          variant: [
-            ...(product?.objects?.length
-              ? []
+    const allProducts = products
+      .map((product) => {
+        try {
+          const mainInventory =
+            product?.tracking?.widget_meta?.custom_data?.inventory ??
+            product?.data?.product?.inventory;
+
+          console.log('Processing product:', mainInventory);
+
+          if (mainInventory === 0) {
+            console.log('Skipping product with inventory 0');
+            throw Error('empty'); // Skip product if inventory is 0
+          }
+
+          const variants = (product?.objects || [])
+            .filter((variant) => {
+              const variantInventory =
+                variant?.tracking?.widget_meta?.custom_data?.inventory ??
+                variant?.data?.product?.inventory;
+
+              return variantInventory !== 0; // Skip variants with inventory 0
+            })
+            .map((variant) => ({
+              quantity: variant?.data?.product?.unit || '',
+              mrp: variant?.data?.product?.mrp || 0,
+              price: variant?.data?.product?.price || 0,
+              articleId: variant?.data?.product?.product_id || null
+            }));
+
+          if (!variants.length && mainInventory === 0) {
+            return null; // Skip product if no valid variants and main product inventory is 0
+          }
+
+          return {
+            title: product?.tracking?.widget_meta?.title || '',
+            brand: product?.data?.product?.brand || '',
+            variant: variants.length
+              ? variants
               : [
                   {
                     quantity: product?.data?.product?.unit || '',
@@ -290,26 +324,17 @@ however the request being made is correct
                     price: product?.data?.product?.price || 0,
                     articleId: product?.data?.product?.product_id || null
                   }
-                ]),
-            ...(product?.objects || []).map((variant) => {
-              return {
-                quantity: variant?.data?.product?.unit || '',
-                mrp: variant?.data?.product?.mrp || 0,
-                price: variant?.data?.product?.price || 0,
-                articleId: variant?.data?.product?.product_id || null
-              };
-            })
-          ],
-
-          url: getProductLink(product),
-          pincode: Number(pincode) || null
-        };
-      } catch (error) {
-        console.error('Error processing product:', product, error.message);
-        return null; // Skip this product if an error occurs
-      }
-    });
-
+                ],
+            url: getProductLink(product),
+            pincode: Number(pincode) || null
+          };
+        } catch (error) {
+          console.error('Error processing product:', product, error.message);
+          return null; // Skip this product if an error occurs
+        }
+      })
+      .filter((product) => !!product);
+    job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
     await job.save();
     return [allProducts, filename];
