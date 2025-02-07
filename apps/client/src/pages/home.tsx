@@ -102,7 +102,7 @@ export function Home() {
       const payload: {
         url: string;
         pincode: string;
-        schedulingTime?: Date;
+        schedulingTime?: string;
         recurring?: boolean;
         repeatInterval?: string;
       } = {
@@ -110,12 +110,22 @@ export function Home() {
         pincode: pincode
       };
       if (scheduled) {
-        payload.schedulingTime = dateTime;
+        const year = dateTime.getFullYear();
+        const month = String(dateTime.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+        const day = String(dateTime.getDate()).padStart(2, '0');
+        const hours = String(dateTime.getHours()).padStart(2, '0'); // Local time
+        const minutes = String(dateTime.getMinutes()).padStart(2, '0');
+        const seconds = String(dateTime.getSeconds()).padStart(2, '0');
+
+        const localDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        payload.schedulingTime = localDateTime;
+
         if (recurring) {
           payload.recurring = true;
           payload.repeatInterval = repeatInterval;
         }
       }
+
       const res = await client.post('scrape', {
         json: payload,
         headers: {

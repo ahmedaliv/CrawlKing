@@ -44,7 +44,7 @@ router.post('/scrape', async (req, res) => {
       const scheduledMoment = moment(schedulingTime);
       const hour = scheduledMoment.format('HH');
       const minute = scheduledMoment.format('mm');
-
+      
       let interval = '';
 
       if (repeatInterval === 'daily') {
@@ -65,7 +65,9 @@ router.post('/scrape', async (req, res) => {
           type
         })
         .unique({ url, pincode, interval }) // Ensure uniqueness
-        .repeatEvery(interval)
+        .repeatEvery(interval,{
+          timezone: 'Asia/Kolkata'
+        })
         .save();
 
       return res.json({
