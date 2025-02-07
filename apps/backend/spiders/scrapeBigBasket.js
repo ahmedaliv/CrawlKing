@@ -51,6 +51,7 @@ async function runJob(job, jobId, url, pincode) {
       console.error('Failed to load the page:', error);
       // Retry or handle the error
     }
+    let requestUrl = '';
     await page.route(/\/v2\/products\?.*/, (route) => {
       if (requestUrl === '') {
         requestUrl = route.request().url();
@@ -62,13 +63,15 @@ async function runJob(job, jobId, url, pincode) {
     });
     await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
     await page.waitForSelector("section ul li[class*='PaginateItems']");
-    let requestUrl = '';
     const categoryNameText = await page
       .locator("div[class*='Breadcrumb'] > div:last-of-type")
       .textContent();
     const categoryName = categoryNameText
       .replace(',', ' ')
       .replace(' ', '-')
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/[&]/g, 'and') // Replace '&' with 'and'
+      .replace(/[^a-zA-Z0-9-_]/g, '') // Remove any other special characters
       .toLowerCase();
     const filename = `BigBasket-${pincode}-${categoryName}-products`;
     console.log(filename);

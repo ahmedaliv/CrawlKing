@@ -33,6 +33,9 @@ async function runJob(job, jobId, url, pincode) {
       .first();
     const categoryName = (await categoryNameElement.textContent())
       .replace(' ', '-')
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/[&]/g, 'and') // Replace '&' with 'and'
+      .replace(/[^a-zA-Z0-9-_]/g, '') // Remove any other special characters
       .toLowerCase();
 
     const filename = `Dmart-${pincode}-${categoryName}-products`;
