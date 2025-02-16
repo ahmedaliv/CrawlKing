@@ -1,4 +1,5 @@
 import playwright from 'playwright';
+import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
     headless: true
@@ -178,7 +179,7 @@ async function runJob(job, jobId, url, pincode) {
     console.log(`Total pages: ${totalPages}`);
     if (requestUrl) {
       // replace the page number to be 1
-      requestUrl = requestUrl.replace(/page=\d+/, 'page=1');
+      requestUrl = requestUrl.replace(/page_number=\d+/, `page_number=${1}`);
       // add page_size to be 100
       requestUrl = requestUrl + `&page_size=100`;
       console.log(requestUrl);
@@ -188,11 +189,12 @@ async function runJob(job, jobId, url, pincode) {
       const products = [];
       let totalScrapped = 0;
       for (let i = 1; i <= totalPages; i++) {
-        requestUrl = requestUrl.replace(/page=\d+/, `page=${i}`);
-        // const response = await page.request.get(requestUrl, {
-        //   headers: headers
-        // });
-        const response = await fetchWithRetry(page, requestUrl, headers);
+        let currentUrl = requestUrl.replace(
+          /page_number=\d+/,
+          `page_number=${i}`
+        );
+        console.log(`Requesting page ${i} with URL: ${currentUrl}`);
+        const response = await fetchWithRetry(page, currentUrl, headers);
         if (response.status() !== 200) {
           console.error(`Request failed with status ${response.status()}`);
           continue;
@@ -241,7 +243,7 @@ async function runJob(job, jobId, url, pincode) {
       // map from product-id to product data and when u see the same id again just go append an additional variant in the one you already have
       const productMap = {};
       const transformedProducts = products || [];
-
+      console.log(`Total Products: ${transformedProducts.length}`);
       for (let i = 0; i < transformedProducts.length; i++) {
         const product = transformedProducts[i];
         const productId = product.product.id; // Unique product ID
@@ -309,14 +311,6 @@ export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }
 
-/*
-problems
-1- تكرار في  ال فارينتس
-2- add the url
-3- try to see if it is possible to handle the pagination with a bigger count to avoid blocking or maybe rotate user agents or anything
-*/
-
-import UserAgent from 'user-agents';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
