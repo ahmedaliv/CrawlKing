@@ -2,6 +2,7 @@ import { main as scrapeDMart } from '../spiders/scrapeDMart.js';
 import { main as scrapeJioMart } from '../spiders/scrapeJioMart.js';
 import { main as scrapeBigBasket } from '../spiders/scrapeBigBasket.js';
 import { main as scrapeBlinkit } from '../spiders/scrapeBlinkit.js';
+import {main as scrapeZeptoNow} from '../spiders/scrapeZeptoNow.js';
 import ScrapeData from '../models/ScrapeData.js'; // Import ScrapeData model
 
 const MAX_RETRIES = 3;
@@ -16,6 +17,8 @@ const getScraper = (url) => {
       return scrapeJioMart;
     case url.includes('blinkit.com'):
       return scrapeBlinkit;
+    case url.includes('zepto'):
+      return scrapeZeptoNow;
     default:
       throw new Error(`No scraper found for URL: ${url}`);
   }
