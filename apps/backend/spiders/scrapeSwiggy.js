@@ -170,10 +170,6 @@ async function runJob(job, jobId, url, pincode) {
       }
       const transformedProducts = [];
       console.log(`Total Products: ${transformedProducts.length}`);
-      /*
-1- either put the each variant as a separate product or combine them in one
-and make that the universal schema for all spiders
-*/
       const productMap = {};
 
       for (let i = 0; i < products.length; i++) {
