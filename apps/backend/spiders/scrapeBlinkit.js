@@ -1,22 +1,33 @@
 import playwright from 'playwright';
+import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
-  const browser = await playwright.chromium.launch({
-    headless: true
-  });
-  /*
-problems so far
-https://blinkit.com/cn/tomato-chilli-ketchup/cid/972/277
+  const userAgent = new UserAgent({ deviceCategory: 'desktop' });
 
-in this site
-it does not get all the products that shows on the website
-however the request being made is correct
-*/
+  const randomUserAgent = userAgent.toString();
+  const browser = await playwright.chromium.launch({
+    headless: true,
+    // args: [
+    //   '--disable-blink-features=AutomationControlled', // Disable automation detection
+    //   '--no-sandbox',
+    //   '--disable-setuid-sandbox',
+    //   '--disable-dev-shm-usage'
+    // ]
+  });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      userAgent: randomUserAgent
+    });
     const page = await context.newPage();
-    page.setDefaultTimeout(60000 * 3);
+    // await page.addInitScript(() => {
+    //   Object.defineProperty(navigator, 'webdriver', {
+    //     get: () => false
+    //   });
+    // });
+    // page.setDefaultTimeout(60000 * 3);
     // await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
     await page.goto(url);
+    await page.waitForLoadState('domcontentloaded');
+    await page.screenshot({ path: 'screenshot.png' }); // Take a screenshot
     await page.waitForSelector("div[class*='ProductsContainer'] a");
     // Handle location input (Pincode)
     await page.waitForSelector("div[class*='LocationBar__SubtitleContainer']", {
