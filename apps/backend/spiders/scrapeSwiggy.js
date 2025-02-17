@@ -2,7 +2,7 @@ import playwright from 'playwright';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: false
+    headless: true
   });
 
   try {
