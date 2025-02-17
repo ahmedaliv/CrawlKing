@@ -6,9 +6,11 @@ async function runJob(job, jobId, url, pincode) {
   });
 
   try {
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+
+    const randomUserAgent = userAgent.toString();
     const context = await browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      userAgent: randomUserAgent
     });
     const page = await context.newPage();
     page.setDefaultTimeout(60000 * 3);
@@ -310,7 +312,6 @@ async function runJob(job, jobId, url, pincode) {
 export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }
-
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

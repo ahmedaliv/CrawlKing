@@ -7,10 +7,14 @@ async function runJob(job, jobId, url, pincode) {
   const startTime = performance.now(); // Record the start time
 
   try {
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+
+    const randomUserAgent = userAgent.toString();
     // Create a new Playwright context
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      userAgent: randomUserAgent
+    });
     const page = await context.newPage();
-    page.setDefaultTimeout(60000 * 3);
     // Navigate to the target URL
     try {
       await page.goto(url, { timeout: 60 * 1000 });
