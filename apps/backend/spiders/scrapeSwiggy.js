@@ -93,7 +93,7 @@ async function runJob(job, jobId, url, pincode) {
       console.log(`Finding total pages for URL: ${url}`);
       let start = 0; // First page
       let end = 1000; // Assume an initial maximum page count
-      let totalPages = 0;
+      let ans = -1;
 
       while (start <= end) {
         const mid = Math.floor((start + end) / 2);
@@ -110,11 +110,11 @@ async function runJob(job, jobId, url, pincode) {
             const data = await res.json(); // Parse the JSON response
             console.log(Object.keys(data));
             // Check if the page has products
-            if (data['data']['items'].length > 0) {
-              totalPages = mid; // Update totalPages to the current mid
-              start = mid + 1; // Search in the upper half
+            if (data['data'] && data['data']['hasMore'] === false) {
+              ans = mid; // Update totalPages to the current mid
+              end = mid - 1; // Search in the upper half
             } else {
-              end = mid - 1; // Search in the lower half
+              start = mid + 1; // Search in the lower half
             }
           } else {
             throw new Error(
@@ -127,15 +127,15 @@ async function runJob(job, jobId, url, pincode) {
         }
       }
 
-      console.log(`Total pages: ${totalPages}`);
-      return totalPages;
+      console.log(`Total pages: ${ans}`);
+      return ans === -1 ? 0 : ans;
     }
 
     const totalPages = await findTotalPages(requestUrl);
     console.log(`Total pages: ${totalPages}`);
     if (requestUrl) {
-        job.attrs.data.progress = 15;
-        await job.save();
+      job.attrs.data.progress = 15;
+      await job.save();
       const products = [];
       let totalScrapped = 0;
       for (let i = 0; i <= totalPages; i++) {
@@ -169,7 +169,7 @@ async function runJob(job, jobId, url, pincode) {
         await job.save();
       }
       const transformedProducts = [];
-      console.log(`Total Products: ${transformedProducts.length}`);
+      console.log(`Total Products: ${products.length}`);
       const productMap = {};
 
       for (let i = 0; i < products.length; i++) {
@@ -202,8 +202,9 @@ async function runJob(job, jobId, url, pincode) {
 
       console.log(`Total Products: ${allProducts.length}`);
       // print all the products
-        job.attrs.data.progress = 100;
-        await job.save();
+      job.attrs.data.total_products = allProducts.length;
+      job.attrs.data.progress = 100;
+      await job.save();
       return [allProducts, filename];
     } else {
       console.log('failed to send the request, check the url');
@@ -269,5 +270,3 @@ const fetchWithRetry = async (
     ); // Exponential backoff
   }
 };
-
-
