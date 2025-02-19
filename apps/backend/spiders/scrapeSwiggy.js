@@ -112,7 +112,7 @@ async function runJob(job, jobId, url, pincode) {
       categoryName = await page
         .locator('div[data-testid="title-element"]')
         .textContent();
-      categoryName.split('in')[1];
+      categoryName = categoryName.split('in')[1];
       console.log(`Category Name: ${categoryName}`);
     }
     // Format the category name
@@ -159,7 +159,6 @@ async function runJob(job, jobId, url, pincode) {
       while (start <= end) {
         const mid = Math.floor((start + end) / 2);
         let newUrl = url.replace(/pageNo=\d+/, `pageNo=${mid}`);
-        console.log(`Checking page ${mid} - URL: ${newUrl}`);
 
         try {
           let res;
@@ -170,7 +169,6 @@ async function runJob(job, jobId, url, pincode) {
           } else {
             // For POST requests
             newUrl = newUrl.replace(/offset=\d+/, `offset=${mid * 20}`);
-            console.log(`URL for POST: ${newUrl}`);
             res = await page.request.post(newUrl, {
               headers: headers,
               data: requestBody
