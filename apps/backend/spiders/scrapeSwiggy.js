@@ -29,39 +29,92 @@ async function runJob(job, jobId, url, pincode) {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);
     await page.goto(url);
-    await page.waitForSelector('div[data-testid="default_container_ux4"]');
+    const result = await Promise.race([
+      page
+        .waitForSelector('div[data-testid="default_container_ux4"]')
+        .then((el) => ({ element: el, type: 'default_container_ux4' })),
+      page
+        .waitForSelector('div[data-testid="ItemWidgetContainer"]')
+        .then((el) => ({ element: el, type: 'ItemWidgetContainer' }))
+    ]);
+
     // intercept the request
 
     let requestUrl = '';
     let headers = {};
-    await page.route(
-      /\/api\/instamart\/collection\?.*/, // Match the new URL pattern
-      async (route) => {
-        if (requestUrl === '') {
-          const request = route.request();
-          requestUrl = request.url();
-          headers = request.headers();
+    let requestBody = null;
+    if (result.type === 'default_container_ux4') {
+      await page.route(
+        /\/api\/instamart\/collection\?.*/, // Match the new URL pattern
+        async (route) => {
+          if (requestUrl === '') {
+            const request = route.request();
+            requestUrl = request.url();
+            headers = request.headers();
 
-          console.log('Request URL:', requestUrl);
-          console.log('Headers:', headers);
+            console.log('Request URL:', requestUrl);
 
-          // Continue the request
-          route.continue();
-        } else {
-          // Abort the request if it's already been captured
-          route.abort();
+            // Continue the request
+            route.continue();
+          } else {
+            // Abort the request if it's already been captured
+            route.abort();
+          }
         }
-      }
-    );
+      );
+    } else {
+      await page.route(
+        /\/api\/instamart\/category-listing\/filter\?.*/, // Match the new URL pattern
+        async (route) => {
+          if (requestUrl === '') {
+            const request = route.request();
+            requestUrl = request.url();
+            headers = request.headers();
 
+            console.log('Request URL:', requestUrl);
+            console.log('Headers:', headers);
+            requestBody = request.postData();
+            console.log('Request Body:', requestBody);
+            // Continue the request
+            route.continue();
+          } else {
+            // Abort the request if it's already been captured
+            route.abort();
+          }
+        }
+      );
+    }
     await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
-    await page.waitForSelector('div[data-testid="default_container_ux4"]');
-    let categoryName = await page
-      .locator(
-        'div.content  > div[data-testid="children-wrapper"]:first-of-type > div:first-of-type  > div:last-of-type'
-      )
-      .textContent();
-
+    try {
+      const element = await Promise.race([
+        page.waitForSelector('div[data-testid="default_container_ux4"]', {
+          timeout: 10000
+        }),
+        page.waitForSelector('div[data-testid="ItemWidgetContainer"]', {
+          timeout: 10000
+        })
+      ]);
+      console.log(
+        'Found element:',
+        await element.evaluate((el) => el.outerHTML)
+      );
+    } catch (error) {
+      console.error('Neither element appeared in time:', error);
+    }
+    let categoryName = '';
+    if (result.type === 'default_container_ux4') {
+      categoryName = await page
+        .locator(
+          'div.content  > div[data-testid="children-wrapper"]:first-of-type > div:first-of-type  > div:last-of-type'
+        )
+        .textContent();
+    } else {
+      categoryName = await page
+        .locator('div[data-testid="title-element"]')
+        .textContent();
+      categoryName.split('in')[1];
+      console.log(`Category Name: ${categoryName}`);
+    }
     // Format the category name
     categoryName = categoryName
       .replace('in', '')
@@ -81,9 +134,16 @@ async function runJob(job, jobId, url, pincode) {
     if (requestUrl === '') {
       console.log('Failed to intercept the request, Scrolling Now');
       await page.evaluate(async () => {
-        const lastElement = document.querySelector(
+        let lastElement = document.querySelector(
           'div[data-testid="default_container_ux4"]:last-of-type'
         );
+        // if not found, try the other selector
+        if (!lastElement) {
+          console.log('Trying the other selector');
+          lastElement = document.querySelector(
+            'div[data-testid="ItemWidgetContainer"]:last-of-type'
+          );
+        }
         lastElement.scrollIntoView();
         // wait for 2 seconds
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -93,22 +153,33 @@ async function runJob(job, jobId, url, pincode) {
       console.log(`Finding total pages for URL: ${url}`);
       let start = 0; // First page
       let end = 1000; // Assume an initial maximum page count
+
       let ans = -1;
 
       while (start <= end) {
         const mid = Math.floor((start + end) / 2);
-        const newUrl = url.replace(/pageNo=\d+/, `pageNo=${mid}`);
+        let newUrl = url.replace(/pageNo=\d+/, `pageNo=${mid}`);
         console.log(`Checking page ${mid} - URL: ${newUrl}`);
 
         try {
-          const res = await page.request.get(newUrl, {
-            headers: headers
-          });
+          let res;
+          if (result.type === 'default_container_ux4') {
+            res = await page.request.get(newUrl, {
+              headers: headers
+            });
+          } else {
+            // For POST requests
+            newUrl = newUrl.replace(/offset=\d+/, `offset=${mid * 20}`);
+            console.log(`URL for POST: ${newUrl}`);
+            res = await page.request.post(newUrl, {
+              headers: headers,
+              data: requestBody
+            });
+          }
 
-          // Check response status
           if (res.status() === 200) {
             const data = await res.json(); // Parse the JSON response
-            console.log(Object.keys(data));
+
             // Check if the page has products
             if (data['data'] && data['data']['hasMore'] === false) {
               ans = mid; // Update totalPages to the current mid
@@ -127,6 +198,7 @@ async function runJob(job, jobId, url, pincode) {
         }
       }
 
+
       console.log(`Total pages: ${ans}`);
       return ans === -1 ? 0 : ans;
     }
@@ -139,10 +211,19 @@ async function runJob(job, jobId, url, pincode) {
       const products = [];
       let totalScrapped = 0;
       for (let i = 0; i <= totalPages; i++) {
+        if (result.type !== 'default_container_ux4') {
+          requestUrl = requestUrl.replace(/offset=\d+/, `offset=${i * 20}`);
+        }
         let currentUrl = requestUrl.replace(/pageNo=\d+/, `pageNo=${i}`);
         // .replace(/limit=\d+/, `limit=100`);
         console.log(`Requesting page ${i} with URL: ${currentUrl}`);
-        const response = await fetchWithRetry(page, currentUrl, headers);
+        const response = await fetchWithRetry(
+          page,
+          currentUrl,
+          headers,
+          requestBody
+        );
+
         if (response.status() !== 200) {
           console.error(`Request failed with status ${response.status()}`);
           continue;
@@ -154,22 +235,39 @@ async function runJob(job, jobId, url, pincode) {
           console.error('Failed to parse JSON:', error);
           continue;
         }
-        const milestoneData = data['data']['items'];
-        console.log(`Current Data len: ${milestoneData.length} for page ${i}`);
-        products.push(...milestoneData);
-        const hasMore = data['data']['hasMore'];
-        if (!hasMore) {
-          console.log('Finished scraping all products');
+        try {
+          let milestoneData;
+          if (result.type === 'default_container_ux4') {
+            milestoneData = data['data']['items'];
+          } else {
+            milestoneData =
+              data['data']['widgets'][data['data']['widgets'].length - 1][
+                'data'
+              ];
+          }
+          console.log(
+            `Current Data len: ${milestoneData.length} for page ${i}`
+          );
+          products.push(...milestoneData);
+          totalScrapped = products.length;
+          console.log(`Total So Far:${totalScrapped}`);
+          const hasMore = data['data']['hasMore'];
+          if (!hasMore) {
+            console.log('Finished scraping all products');
+            break;
+          }
+          job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / totalPages);
+          job.attrs.data.total_products = totalScrapped;
+          await job.save();
+        } catch (error) {
+          console.log(`broke from the loop with ${error.message}`);
           break;
         }
-        totalScrapped = products.length;
-        console.log(`Total So Far:${totalScrapped}`);
-        job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / totalPages);
-        job.attrs.data.total_products = totalScrapped;
-        await job.save();
       }
       const transformedProducts = [];
       console.log(`Total Products: ${products.length}`);
+      console.log(`file Name : ${filename}`);
+
       const productMap = {};
 
       for (let i = 0; i < products.length; i++) {
@@ -202,6 +300,7 @@ async function runJob(job, jobId, url, pincode) {
 
       console.log(`Total Products: ${allProducts.length}`);
       // print all the products
+
       job.attrs.data.total_products = allProducts.length;
       job.attrs.data.progress = 100;
       await job.save();
@@ -227,6 +326,7 @@ const fetchWithRetry = async (
   page,
   url,
   headers,
+  requestBody = null,
   retries = 5,
   currentBackoff = 1000,
   attempt = 1
@@ -234,14 +334,24 @@ const fetchWithRetry = async (
   try {
     const userAgent = new UserAgent();
     const randomUserAgent = userAgent.toString();
-
-    const response = await page.request.get(url, {
-      headers: {
-        ...headers,
-        'User-Agent': randomUserAgent // Use the random user agent
-      }
-    });
-
+    let response;
+    if (!requestBody) {
+      response = await page.request.get(url, {
+        headers: {
+          ...headers,
+          'User-Agent': randomUserAgent // Use the random user agent
+        }
+      });
+    } else {
+      console.log(`making post request`);
+      response = await page.request.post(url, {
+        headers: {
+          ...headers,
+          'User-Agent': randomUserAgent
+        },
+        data: requestBody
+      });
+    }
     if (response.status() !== 200) {
       console.error(`Request failed with status ${response.status()}`);
       if (response.status() === 403 || response.status() === 429) {
@@ -250,6 +360,7 @@ const fetchWithRetry = async (
         throw new Error(`Non-retryable error: ${response.status()}`);
       }
     }
+    console.log(`status: ${response.status()}`);
     return response; // Success: reset backoff
   } catch (error) {
     console.error(
@@ -264,6 +375,7 @@ const fetchWithRetry = async (
       page,
       url,
       headers,
+      requestBody,
       retries - 1,
       currentBackoff * 2,
       attempt + 1
