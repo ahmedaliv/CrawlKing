@@ -5,7 +5,7 @@ async function runJob(job, jobId, url, pincode) {
 
   const randomUserAgent = userAgent.toString();
   const browser = await playwright.chromium.launch({
-    headless: true,
+    headless: true
     // args: [
     //   '--disable-blink-features=AutomationControlled', // Disable automation detection
     //   '--no-sandbox',
@@ -336,7 +336,7 @@ async function runJob(job, jobId, url, pincode) {
                     articleId: product?.data?.product?.product_id || null
                   }
                 ],
-            url: getProductLink(product),
+            url: `https://blinkit.com${getProductLink(product)}`,
             pincode: Number(pincode) || null
           };
         } catch (error) {
