@@ -193,7 +193,13 @@ export function DataTable() {
       accessorKey: 'failCount',
       header: 'Fail Count',
       cell: ({ row }: { row: Row<Job> }) => {
-        const failCount = row.original.failCount || 0;
+        let failCount = row.original.failCount || 0;
+        if (
+          row.original.type === 'recurring' &&
+          row.original.lastRunStatus == 'completed'
+        ) {
+          failCount = 0;
+        }
         return <div className="capitalize">{failCount}</div>;
       }
     },
@@ -202,16 +208,29 @@ export function DataTable() {
       header: 'Failed At',
       cell: ({ row }: { row: Row<Job> }) => {
         const failedAt = new Date(row.getValue('failedAt'));
+        if (
+          row.original.type === 'recurring' &&
+          row.original.lastRunStatus == 'completed'
+        ) {
+          return <div className="capitalize"></div>;
+        }
         <div className="capitalize">{failedAt.toLocaleString()}</div>;
       }
     },
     {
       accessorKey: 'failReason',
       header: 'Fail Reason',
-      cell: ({ row }: { row: Row<Job> }) =>
-        row.getValue('status') !== 'completed' && (
-          <div className="capitalize">{row.getValue('failReason')}</div>
-        )
+      cell: ({ row }: { row: Row<Job> }) => {
+        if (
+          row.original.type === 'recurring' &&
+          row.original.lastRunStatus == 'completed'
+        ) {
+          return <div className="capitalize"></div>;
+        }
+        if (row.getValue('status') !== 'completed') {
+          return <div className="capitalize">{row.getValue('failReason')}</div>;
+        }
+      }
     }
   ];
   const [sorting, setSorting] = React.useState<SortingState>([]);

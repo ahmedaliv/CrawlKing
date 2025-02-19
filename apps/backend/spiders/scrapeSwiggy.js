@@ -2,7 +2,7 @@ import playwright from 'playwright';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: false
+    headless: true
   });
 
   try {
@@ -153,7 +153,8 @@ async function runJob(job, jobId, url, pincode) {
       console.log(`Finding total pages for URL: ${url}`);
       let start = 0; // First page
       let end = 1000; // Assume an initial maximum page count
-      let ans = -1; // To store the first page where hasMore is false
+
+      let ans = -1;
 
       while (start <= end) {
         const mid = Math.floor((start + end) / 2);
@@ -178,14 +179,13 @@ async function runJob(job, jobId, url, pincode) {
 
           if (res.status() === 200) {
             const data = await res.json(); // Parse the JSON response
-            console.log(`Response for page ${mid}:`, data);
 
-            // Check if the page has products and hasMore is false
+            // Check if the page has products
             if (data['data'] && data['data']['hasMore'] === false) {
-              ans = mid; // Update ans to the current mid
-              end = mid - 1; // Search in the lower half for an earlier page
+              ans = mid; // Update totalPages to the current mid
+              end = mid - 1; // Search in the upper half
             } else {
-              start = mid + 1; // Search in the upper half
+              start = mid + 1; // Search in the lower half
             }
           } else {
             throw new Error(
@@ -198,12 +198,9 @@ async function runJob(job, jobId, url, pincode) {
         }
       }
 
-      if (ans !== -1) {
-        console.log(`First page with hasMore = false: ${ans}`);
-      } else {
-        console.log('No page found with hasMore = false');
-      }
-      return ans;
+
+      console.log(`Total pages: ${ans}`);
+      return ans === -1 ? 0 : ans;
     }
 
     const totalPages = await findTotalPages(requestUrl);
@@ -270,6 +267,7 @@ async function runJob(job, jobId, url, pincode) {
       const transformedProducts = [];
       console.log(`Total Products: ${products.length}`);
       console.log(`file Name : ${filename}`);
+
       const productMap = {};
 
       for (let i = 0; i < products.length; i++) {
@@ -302,7 +300,8 @@ async function runJob(job, jobId, url, pincode) {
 
       console.log(`Total Products: ${allProducts.length}`);
       // print all the products
-      job.attrs.data.total_products = totalScrapped;
+
+      job.attrs.data.total_products = allProducts.length;
       job.attrs.data.progress = 100;
       await job.save();
       return [allProducts, filename];
