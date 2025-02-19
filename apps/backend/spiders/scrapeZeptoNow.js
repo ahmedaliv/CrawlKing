@@ -269,19 +269,19 @@ async function runJob(job, jobId, url, pincode) {
         } else {
           // Create a new product entry
           productMap[productId] = {
+            title: product.product.name,
             brand: product.product.brand
               ? product.product.brand.toLowerCase() !== 'unbranded' &&
                 product.product.brand.toLowerCase() !== ''
                 ? product.product.brand
                 : ''
               : '',
-            title: product.product.name,
             variant: [
               {
                 articleId: variantId, // Use variantId, not product.id
                 quantity: `${product.productVariant.formattedPacksize}`, // Consistent format
-                mrp: product.productVariant.mrp,
-                price: product.discountedSellingPrice
+                mrp: product.productVariant.mrp / 100,
+                price: product.discountedSellingPrice / 100
               }
             ],
             url: `https://www.zeptonow.com${generateProductUrl({

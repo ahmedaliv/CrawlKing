@@ -101,6 +101,10 @@ router.post('/stop', async (req, res) => {
     if (!job || job.length === 0) {
       return res.status(404).json({ error: 'Job not found' });
     }
+    // only stop it if it is not completed 
+    if (job[0].attrs.data.status === 'completed') {
+      return res.status(400).json({ error: 'Job already completed' });
+    }  
     await job[0].remove();
     return res.json({ message: 'Job stopped successfully' });
   } catch (error) {
