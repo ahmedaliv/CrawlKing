@@ -5,7 +5,7 @@ async function runJob(job, jobId, url, pincode) {
 
   const randomUserAgent = userAgent.toString();
   const browser = await playwright.chromium.launch({
-    headless: true
+    headless: false
     // args: [
     //   '--disable-blink-features=AutomationControlled', // Disable automation detection
     //   '--no-sandbox',
@@ -113,7 +113,7 @@ async function runJob(job, jobId, url, pincode) {
       console.log('Failed to intercept the request, Scrolling Now');
       await page.evaluate(async () => {
         const selector = "div[class*='ProductsContainer'] a";
-        const previousCount = document.querySelectorAll(selector).length;
+        let previousCount = document.querySelectorAll(selector).length;
         const container = document.querySelector(
           "div[class*='ProductsContainer']"
         );
@@ -290,40 +290,43 @@ async function runJob(job, jobId, url, pincode) {
       return url;
     }
 
-    const allProducts = products
-      .map((product) => {
-        try {
-          const mainInventory =
-            product?.tracking?.widget_meta?.custom_data?.inventory ??
-            product?.data?.product?.inventory;
+    const productMap = {};
+    for (const product of products) {
+      try {
+        const mainInventory =
+          product?.tracking?.widget_meta?.custom_data?.inventory ??
+          product?.data?.product?.inventory;
 
-          console.log('Processing product:', mainInventory);
+        console.log('Processing product:', mainInventory);
 
-          if (mainInventory === 0) {
-            console.log('Skipping product with inventory 0');
-            throw Error('empty'); // Skip product if inventory is 0
-          }
+        // if (mainInventory === 0) {
+        //   console.log('Skipping product with inventory 0');
+        //   continue; // Skip product if inventory is 0
+        // }
+        const productName = product?.tracking?.widget_meta?.title || '';
+        const variants = [];
+        const objects = product?.objects || [];
+        for (const variant of objects) {
+          const variantInventory =
+            variant?.tracking?.widget_meta?.custom_data?.inventory ??
+            variant?.data?.product?.inventory;
 
-          const variants = (product?.objects || [])
-            .filter((variant) => {
-              const variantInventory =
-                variant?.tracking?.widget_meta?.custom_data?.inventory ??
-                variant?.data?.product?.inventory;
-
-              return variantInventory !== 0; // Skip variants with inventory 0
-            })
-            .map((variant) => ({
+          // if (variantInventory !== 0) {
+            variants.push({
               quantity: variant?.data?.product?.unit || '',
               mrp: variant?.data?.product?.mrp || 0,
               price: variant?.data?.product?.price || 0,
               articleId: variant?.data?.product?.product_id || null
-            }));
+            });
+          // }
+        }
 
-          if (!variants.length && mainInventory === 0) {
-            return null; // Skip product if no valid variants and main product inventory is 0
-          }
+        if (!variants.length) {
+          continue; // Skip product if no valid variants and main product inventory is 0
+        }
 
-          return {
+        if (!productMap[productName]) {
+          productMap[productName] = {
             title: product?.tracking?.widget_meta?.title || '',
             brand: product?.data?.product?.brand || '',
             variant: variants.length
@@ -333,18 +336,25 @@ async function runJob(job, jobId, url, pincode) {
                     quantity: product?.data?.product?.unit || '',
                     mrp: product?.data?.product?.mrp || 0,
                     price: product?.data?.product?.price || 0,
-                    articleId: product?.data?.product?.product_id || null
+                    articleId:
+                      String(product?.data?.product?.product_id) || null
                   }
                 ],
             url: `https://blinkit.com${getProductLink(product)}`,
             pincode: Number(pincode) || null
           };
-        } catch (error) {
-          console.error('Error processing product:', product, error.message);
-          return null; // Skip this product if an error occurs
+        } else {
+          console.log('Product already exists:', productName);
+          // push its variants inside the already existing one
+          productMap[productName]['variant'].push(...variants);
         }
-      })
-      .filter((product) => !!product);
+      } catch (error) {
+        console.error('Error processing product:', product, error.message);
+        // Skip this product if an error occurs
+      }
+    }
+    const allProducts = Object.values(productMap);
+
     job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
     await job.save();

@@ -164,9 +164,9 @@ async function runJob(job, jobId, url, pincode) {
         variant: product.sKUs.map((variant) => {
           return {
             quantity: variant.variantTextValue,
-            mrp: variant.priceMRP,
-            price: variant.priceSALE,
-            articleId: variant.articleNumber
+            mrp: Number(variant.priceMRP),
+            price: Number(variant.priceSALE),
+            articleId: Number(variant.articleNumber)
           };
         }),
         url: `https://www.dmart.in/product/${product.seo_token_ntk}`,
