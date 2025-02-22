@@ -256,6 +256,7 @@ async function runJob(job, jobId, url, pincode) {
           } else {
             break;
           }
+          new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
       // based on the above json, transform to the descired schema like the one in scrapeBigBasked.js

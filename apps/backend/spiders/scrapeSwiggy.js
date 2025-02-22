@@ -196,7 +196,6 @@ async function runJob(job, jobId, url, pincode) {
         }
       }
 
-
       console.log(`Total pages: ${ans}`);
       return ans === -1 ? 0 : ans;
     }
@@ -277,6 +276,7 @@ async function runJob(job, jobId, url, pincode) {
             brand: product['brand'],
             title: product['display_name'],
             variant: [],
+            articleIds: new Set(), // Track added article IDs
             url: `https://www.swiggy.com/instamart/item/${
               product['product_id']
             }?storeId=${product['variations']?.[0]?.store_id || ''}`,
@@ -284,17 +284,25 @@ async function runJob(job, jobId, url, pincode) {
           };
         }
 
-        productMap[key]['variant'].push(
-          ...(product['variations'] || []).map((variant) => ({
-            quantity: variant['sku_quantity_with_combo'],
-            mrp: variant['price']['mrp'],
-            price: variant['price']['offer_price'],
-            articleId: variant['id']
-          }))
-        );
+        (product['variations'] || []).forEach((variant) => {
+          if (!productMap[key].articleIds.has(variant['id'])) {
+            productMap[key]['variant'].push({
+              quantity: variant['sku_quantity_with_combo'],
+              mrp: variant['price']['mrp'],
+              price: variant['price']['offer_price'],
+              articleId: variant['id']
+            });
+            productMap[key].articleIds.add(variant['id']);
+          }
+        });
       }
 
-      const allProducts = Object.values(productMap);
+      // Remove the 'articleIds' set before final output
+      const allProducts = Object.values(productMap).map(
+        ({ articleIds, ...rest }) => rest
+      );
+
+      console.log(`Total Products: ${allProducts.length}`);
 
       console.log(`Total Products: ${allProducts.length}`);
       // print all the products

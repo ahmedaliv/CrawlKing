@@ -13,13 +13,11 @@ async function runJob(job, jobId, url, pincode) {
       userAgent: randomUserAgent
     });
     const page = await context.newPage();
-    page.setDefaultTimeout(60000 * 3);
+    // page.setDefaultTimeout(60000 * 3);
     await page.goto(url);
     await page.waitForSelector("section ul li[class*='PaginateItems']");
     // Handle location input (Pincode)
-    await page.waitForSelector('button:has-text("Select Location")', {
-      timeout: 3 * 60000
-    });
+    await page.waitForSelector('button:has-text("Select Location")');
     const pincodeButton = page
       .locator('button:has-text("Select Location")')
       .first()
