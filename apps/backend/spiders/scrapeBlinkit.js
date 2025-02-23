@@ -18,7 +18,7 @@ async function runJob(job, jobId, url, pincode) {
       userAgent: randomUserAgent
     });
     const page = await context.newPage();
-    await page.setDefaultTimeout(60000)
+    page.setDefaultTimeout(60000)
     // await page.addInitScript(() => {
     //   Object.defineProperty(navigator, 'webdriver', {
     //     get: () => false
@@ -29,7 +29,6 @@ async function runJob(job, jobId, url, pincode) {
     let headers = {};
     await page.goto(url);
     await page.waitForLoadState('domcontentloaded');
-    await page.screenshot({ path: 'screenshot.png' }); // Take a screenshot
     await page.waitForSelector("div[class*='ProductsContainer'] a");
     // Handle location input (Pincode)
     await page.waitForSelector("div[class*='LocationBar__SubtitleContainer']");
@@ -111,6 +110,7 @@ async function runJob(job, jobId, url, pincode) {
     let defaultUrl =
       'https://blinkit.com/v1/listing/widgets?page=0&l0_cat=1487&l1_cat=742';
     // go through each subcategory and get its data
+    const productMap = {};
     const subCats = await page.locator('.category-list a').all();
     for (let idx = 0; idx < subCats.length; idx++) {
       console.log(
@@ -299,7 +299,6 @@ async function runJob(job, jobId, url, pincode) {
         return url;
       }
 
-      const productMap = {};
       for (const product of products) {
         try {
           const mainInventory =
@@ -349,7 +348,7 @@ async function runJob(job, jobId, url, pincode) {
           } else {
             console.log('Product already exists:', productName);
             // push its variants inside the already existing one
-            productMap[productName]['variant'].push(...variants);
+            // productMap[productName]['variant'].push(...variants);
           }
         } catch (error) {
           console.error('Error processing product:', product, error.message);
@@ -357,11 +356,11 @@ async function runJob(job, jobId, url, pincode) {
         }
       }
       console.log(`current subCat Length ${Object.keys(productMap).length}`);
-      allProducts.push(...Object.values(productMap));
       job.attrs.data.progress =
-        15 + Math.ceil(((idx + 1) * 85) / subCats.length);
+      15 + Math.ceil(((idx + 1) * 85) / subCats.length);
       await job.save();
     }
+    allProducts.push(...Object.values(productMap));
 
     job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
