@@ -292,24 +292,11 @@ async function runJob(job, jobId, url, pincode) {
                 .replace(/\s+/g, ' ')
                 .trim()
                 .toLowerCase();
-              if (productName.includes('Tata Sampann High in Fibre Poha')) {
-                console.log(`productName : ${product.product.name}`);
-              }
               if (titleIdMap[productName]) {
-                if (productName.includes('Tata Sampann High in Fibre Poha')) {
-                  console.log(
-                    `productName : ${product.product.name} titlemap has it`
-                  );
-                }
                 const variantExists = productMap[
                   titleIdMap[productName]
                 ].variant.some((v) => v.articleId === variantId);
                 if (!variantExists) {
-                  if (productName.includes('Tata Sampann High in Fibre Poha')) {
-                    console.log(
-                      `productName : ${product.product.name} inside varexist`
-                    );
-                  }
                   // Add the new variant
                   productMap[titleIdMap[productName]].variant.push({
                     articleId: variantId,
@@ -323,11 +310,6 @@ async function runJob(job, jobId, url, pincode) {
                   });
                 }
               } else {
-                if (productName.includes('Tata Sampann High in Fibre Poha')) {
-                  console.log(
-                    `productName : ${productName} titlemap  does not have it`
-                  );
-                }
                 titleIdMap[productName] = productId;
                 productMap[productId] = {
                   title: productName,
