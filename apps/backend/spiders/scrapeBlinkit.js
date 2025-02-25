@@ -5,7 +5,7 @@ async function runJob(job, jobId, url, pincode) {
 
   const randomUserAgent = userAgent.toString();
   const browser = await playwright.chromium.launch({
-    headless: true,
+    headless: true
     // args: [
     //   '--disable-blink-features=AutomationControlled', // Disable automation detection
     //   '--no-sandbox',
@@ -18,7 +18,7 @@ async function runJob(job, jobId, url, pincode) {
       userAgent: randomUserAgent
     });
     const page = await context.newPage();
-    page.setDefaultTimeout(60000)
+    page.setDefaultTimeout(60000);
     // await page.addInitScript(() => {
     //   Object.defineProperty(navigator, 'webdriver', {
     //     get: () => false
@@ -305,20 +305,29 @@ async function runJob(job, jobId, url, pincode) {
             product?.tracking?.widget_meta?.custom_data?.inventory ??
             product?.data?.product?.inventory;
 
-          const productName = product?.tracking?.widget_meta?.title || '';
+          let productName = product?.tracking?.widget_meta?.title || '';
+          if (productName) {
+            productName = productName.split(' - ')[0];
+          }
+          let imageUrl = '';
+
           const variants = [];
           const objects = product?.objects || [];
           for (const variant of objects) {
             const variantInventory =
               variant?.tracking?.widget_meta?.custom_data?.inventory ??
               variant?.data?.product?.inventory;
+            if (!imageUrl) {
+              imageUrl = cleanImageURL(variant.data.product.images[0]);
+            }
 
             // if (variantInventory !== 0) {
             variants.push({
               quantity: variant?.data?.product?.unit || '',
               mrp: variant?.data?.product?.mrp || 0,
               price: variant?.data?.product?.price || 0,
-              articleId: variant?.data?.product?.product_id || null
+              articleId: variant?.data?.product?.product_id || null,
+              variantUrl: `https://blinkit.com${getProductLink(product)}`
             });
             // }
           }
@@ -338,26 +347,35 @@ async function runJob(job, jobId, url, pincode) {
                       quantity: product?.data?.product?.unit || '',
                       mrp: product?.data?.product?.mrp || 0,
                       price: product?.data?.product?.price || 0,
-                      articleId:
-                        String(product?.data?.product?.product_id) || null
+                      articleId: String(product?.data?.product?.product_id),
+                      variantUrl: `https://blinkit.com${getProductLink(
+                        product
+                      )}`
                     }
                   ],
+              imageUrl: imageUrl,
               url: `https://blinkit.com${getProductLink(product)}`,
               pincode: Number(pincode) || null
             };
           } else {
             console.log('Product already exists:', productName);
-            // push its variants inside the already existing one
-            // productMap[productName]['variant'].push(...variants);
+            variants.forEach((variant) => {
+              const existingVariant = productMap[productName].variant.find(
+                (v) => v.articleId === variant.articleId
+              );
+              if (!existingVariant) {
+                productMap[productName].variant.push(variant);
+              }
+            });
           }
         } catch (error) {
           console.error('Error processing product:', product, error.message);
-          // Skip this product if an error occurs
         }
       }
       console.log(`current subCat Length ${Object.keys(productMap).length}`);
       job.attrs.data.progress =
-      15 + Math.ceil(((idx + 1) * 85) / subCats.length);
+        15 + Math.ceil(((idx + 1) * 85) / subCats.length);
+      job.attrs.data.total_products = productMap.size;
       await job.save();
     }
     allProducts.push(...Object.values(productMap));
@@ -375,6 +393,13 @@ async function runJob(job, jobId, url, pincode) {
   }
 }
 
+function cleanImageURL(url) {
+  // Step 1: Replace escaped slashes
+  const cleaned = url.replace(/\\\//g, '/');
+
+  // Step 2: Remove query parameters (everything after "?")
+  return cleaned.split('?')[0];
+}
 export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }

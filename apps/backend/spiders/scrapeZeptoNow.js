@@ -72,6 +72,8 @@ async function runJob(job, jobId, url, pincode) {
     job.attrs.data.progress = 5;
     await job.save();
     const allProducts = [];
+    const productMap = {};
+    const titleIdMap = {};
     const subCats = await page.locator('a[href*="cn"][id]').all();
     for (let idx = 0; idx < subCats.length; idx++) {
       console.log(
@@ -244,13 +246,18 @@ async function runJob(job, jobId, url, pincode) {
           return `/pn/${sanitizedProductName}/pvid/${sanitizedProductVariantId}`;
         };
         // map from product-id to product data and when u see the same id again just go append an additional variant in the one you already have
-        const productMap = {};
+
         const transformedProducts = products || [];
         console.log(`Total Products: ${transformedProducts.length}`);
         for (let i = 0; i < transformedProducts.length; i++) {
           const product = transformedProducts[i];
           const productId = product.product.id; // Unique product ID
           const variantId = product.productVariant.id; // Unique variant ID
+          let productName = product.product.name || '';
+          const BASE_IMAGE_URL = 'https://cdn.zeptonow.com/';
+          const imageUrl = product['productVariant']['images'][0]
+            ? BASE_IMAGE_URL + product['productVariant']['images'][0]['path']
+            : '';
 
           if (productMap[productId]) {
             // Check if the variant already exists
@@ -264,37 +271,100 @@ async function runJob(job, jobId, url, pincode) {
                 articleId: variantId,
                 quantity: `${product.productVariant.formattedPacksize}`,
                 mrp: product.productVariant.mrp,
-                price: product.discountedSellingPrice
+                price: product.discountedSellingPrice,
+                varaintUrl: `https://www.zeptonow.com${generateProductUrl({
+                  productName: product.product.name,
+                  productVariantId: product.productVariant.id
+                })}`
               });
             }
           } else {
-            // Create a new product entry
-            productMap[productId] = {
-              title: product.product.name,
-              brand: product.product.brand
-                ? product.product.brand.toLowerCase() !== 'unbranded' &&
-                  product.product.brand.toLowerCase() !== ''
-                  ? product.product.brand
-                  : ''
-                : '',
-              variant: [
-                {
-                  articleId: variantId, // Use variantId, not product.id
-                  quantity: `${product.productVariant.formattedPacksize}`, // Consistent format
-                  mrp: product.productVariant.mrp / 100,
-                  price: product.discountedSellingPrice / 100
+            const isBundleItems = product.bundleItems.length;
+            if (isBundleItems) {
+              productName = product.bundleItems[0].name;
+              if (titleIdMap[productName]) {
+                const variantExists = productMap[
+                  titleIdMap[productName]
+                ].variant.some((v) => v.articleId === variantId);
+                if (!variantExists) {
+                  // Add the new variant
+                  productMap[titleIdMap[productName]].variant.push({
+                    articleId: variantId,
+                    quantity: `${product.productVariant.formattedPacksize}`,
+                    mrp: product.productVariant.mrp / 100,
+                    price: product.discountedSellingPrice / 100,
+                    variantUrl: `https://www.zeptonow.com${generateProductUrl({
+                      productName: product.product.name,
+                      productVariantId: product.productVariant.id
+                    })}`
+                  });
                 }
-              ],
-              url: `https://www.zeptonow.com${generateProductUrl({
-                productName: product.product.name,
-                productVariantId: product.productVariant.id
-              })}`,
-              pincode: Number(pincode)
-            };
+              } else {
+                titleIdMap[productName] = productId;
+                productMap[productId] = {
+                  title: productName,
+                  brand: product.product.brand
+                    ? product.product.brand.toLowerCase() !== 'unbranded' &&
+                      product.product.brand.toLowerCase() !== ''
+                      ? product.product.brand
+                      : ''
+                    : '',
+                  variant: [
+                    {
+                      articleId: variantId, // Use variantId, not product.id
+                      quantity: `${product.productVariant.formattedPacksize}`, // Consistent format
+                      mrp: product.productVariant.mrp / 100,
+                      price: product.discountedSellingPrice / 100,
+                      variantUrl: `https://www.zeptonow.com${generateProductUrl(
+                        {
+                          productName: product.product.name,
+                          productVariantId: product.productVariant.id
+                        }
+                      )}`
+                    }
+                  ],
+                  imageUrl: imageUrl,
+                  url: `https://www.zeptonow.com${generateProductUrl({
+                    productName: product.product.name,
+                    productVariantId: product.productVariant.id
+                  })}`,
+                  pincode: Number(pincode)
+                };
+              }
+            } else {
+              // Create a new product entry
+              productMap[productId] = {
+                title: productName,
+                brand: product.product.brand
+                  ? product.product.brand.toLowerCase() !== 'unbranded' &&
+                    product.product.brand.toLowerCase() !== ''
+                    ? product.product.brand
+                    : ''
+                  : '',
+                variant: [
+                  {
+                    articleId: variantId, // Use variantId, not product.id
+                    quantity: `${product.productVariant.formattedPacksize}`, // Consistent format
+                    mrp: product.productVariant.mrp / 100,
+                    price: product.discountedSellingPrice / 100,
+                    varaintUrl: `https://www.zeptonow.com${generateProductUrl({
+                      productName: product.product.name,
+                      productVariantId: product.productVariant.id
+                    })}`
+                  }
+                ],
+                imageUrl: imageUrl,
+                url: `https://www.zeptonow.com${generateProductUrl({
+                  productName: product.product.name,
+                  productVariantId: product.productVariant.id
+                })}`,
+                pincode: Number(pincode)
+              };
+              titleIdMap[productName] = productId;
+            }
           }
         }
-        allProducts.push(...Object.values(productMap));
-        job.attrs.data.total_products = allProducts.length;
+        job.attrs.data.total_products = productMap.size;
         job.attrs.data.progress =
           15 + Math.ceil(((idx + 1) * 85) / subCats.length);
         await job.save();
@@ -302,6 +372,7 @@ async function runJob(job, jobId, url, pincode) {
         console.log('failed to send the request, check the url');
       }
     }
+    allProducts.push(...Object.values(productMap));
     job.attrs.data.progress = 100;
     job.attrs.data.total_products = allProducts.length;
     await job.save();

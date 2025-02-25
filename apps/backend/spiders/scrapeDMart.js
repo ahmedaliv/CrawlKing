@@ -157,23 +157,57 @@ async function runJob(job, jobId, url, pincode) {
     }
 
     const transformedProducts = finalResponse.products || [];
-    const allProducts = transformedProducts.map((product) => {
-      return {
-        brand: product.manfacturer,
-        title: product.name,
-        variant: product.sKUs.map((variant) => {
-          return {
-            quantity: variant.variantTextValue,
-            mrp: Number(variant.priceMRP),
-            price: Number(variant.priceSALE),
-            articleId: Number(variant.articleNumber)
-          };
-        }),
-        url: `https://www.dmart.in/product/${product.seo_token_ntk}`,
-        pincode: Number(pincode)
-      };
+    const productMap = {};
+    const allProducts = [];
+
+    transformedProducts.forEach((product) => {
+      const title = product.name;
+      const imageUrl =
+        'https://cdn.dmart.in/images/products/' +
+        product.sKUs[0].productImageKey +
+        '_' +
+        product.sKUs[0].imgCode +
+        '_P.jpg';
+      const variants = product.sKUs.map((variant) => ({
+        quantity: variant.variantTextValue,
+        mrp: Number(variant.priceMRP),
+        price: Number(variant.priceSALE),
+        articleId: Number(variant.articleNumber),
+        variantUrl : `https://www.dmart.in/product/${product.seo_token_ntk}`
+      }));
+
+      if (productMap[title]) {
+        console.log(
+          `🔄 Duplicate product found: "${title}" - Checking variants...`
+        );
+        variants.forEach((variant) => {
+          const existingVariant = productMap[title].variant.find(
+            (v) => v.articleId === variant.articleId
+          );
+          if (!existingVariant) {
+            productMap[title].variant.push(variant);
+          }
+        });
+      } else {
+        productMap[title] = {
+          brand: product.manfacturer,
+          title,
+          variant: variants,
+          imageUrl: imageUrl,
+          url: `https://www.dmart.in/product/${product.seo_token_ntk}`,
+          pincode: Number(pincode)
+        };
+        allProducts.push(productMap[title]);
+      }
     });
+
+    console.log(
+      `\n✅ Processing complete. Total unique products: ${allProducts.length}`
+    );
+
+    job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
+
     await job.save();
     return [allProducts, filename];
   } catch (error) {
