@@ -76,9 +76,6 @@ async function runJob(job, jobId, url, pincode) {
     const titleIdMap = {};
     const subCats = await page.locator('a[href*="cn"][id]').all();
     for (let idx = 0; idx < subCats.length; idx++) {
-      if ((await subCats[idx].textContent()) !== 'Rice & More') {
-        continue;
-      }
       console.log(
         `scraping subcategory ${idx + 1} named ${await subCats[
           idx
