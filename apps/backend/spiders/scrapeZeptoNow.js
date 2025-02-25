@@ -76,6 +76,9 @@ async function runJob(job, jobId, url, pincode) {
     const titleIdMap = {};
     const subCats = await page.locator('a[href*="cn"][id]').all();
     for (let idx = 0; idx < subCats.length; idx++) {
+      if ((await subCats[idx].textContent()) !== 'Rice & More') {
+        continue;
+      }
       console.log(
         `scraping subcategory ${idx + 1} named ${await subCats[
           idx
@@ -254,6 +257,10 @@ async function runJob(job, jobId, url, pincode) {
           const productId = product.product.id; // Unique product ID
           const variantId = product.productVariant.id; // Unique variant ID
           let productName = product.product.name || '';
+          let normalizedName = productName
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
           const BASE_IMAGE_URL = 'https://cdn.zeptonow.com/';
           const imageUrl = product['productVariant']['images'][0]
             ? BASE_IMAGE_URL + product['productVariant']['images'][0]['path']
@@ -281,12 +288,28 @@ async function runJob(job, jobId, url, pincode) {
           } else {
             const isBundleItems = product.bundleItems.length;
             if (isBundleItems) {
-              productName = product.bundleItems[0].name;
+              productName = product.bundleItems[0].name
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+              if (productName.includes('Tata Sampann High in Fibre Poha')) {
+                console.log(`productName : ${product.product.name}`);
+              }
               if (titleIdMap[productName]) {
+                if (productName.includes('Tata Sampann High in Fibre Poha')) {
+                  console.log(
+                    `productName : ${product.product.name} titlemap has it`
+                  );
+                }
                 const variantExists = productMap[
                   titleIdMap[productName]
                 ].variant.some((v) => v.articleId === variantId);
                 if (!variantExists) {
+                  if (productName.includes('Tata Sampann High in Fibre Poha')) {
+                    console.log(
+                      `productName : ${product.product.name} inside varexist`
+                    );
+                  }
                   // Add the new variant
                   productMap[titleIdMap[productName]].variant.push({
                     articleId: variantId,
@@ -300,6 +323,11 @@ async function runJob(job, jobId, url, pincode) {
                   });
                 }
               } else {
+                if (productName.includes('Tata Sampann High in Fibre Poha')) {
+                  console.log(
+                    `productName : ${productName} titlemap  does not have it`
+                  );
+                }
                 titleIdMap[productName] = productId;
                 productMap[productId] = {
                   title: productName,
@@ -334,7 +362,7 @@ async function runJob(job, jobId, url, pincode) {
             } else {
               // Create a new product entry
               productMap[productId] = {
-                title: productName,
+                title: product.product.name,
                 brand: product.product.brand
                   ? product.product.brand.toLowerCase() !== 'unbranded' &&
                     product.product.brand.toLowerCase() !== ''
@@ -360,7 +388,7 @@ async function runJob(job, jobId, url, pincode) {
                 })}`,
                 pincode: Number(pincode)
               };
-              titleIdMap[productName] = productId;
+              titleIdMap[normalizedName] = productId;
             }
           }
         }
