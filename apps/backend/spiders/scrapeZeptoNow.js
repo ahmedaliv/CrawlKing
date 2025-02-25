@@ -262,6 +262,26 @@ async function runJob(job, jobId, url, pincode) {
           const imageUrl = product['productVariant']['images'][0]
             ? BASE_IMAGE_URL + product['productVariant']['images'][0]['path']
             : '';
+          let quantity = product.productVariant.formattedPacksize;
+          try {
+            if (quantity?.trim() === '') {
+              const weight = product.productVariant.weightInGms;
+              const unit = product.productVariant.unitOfMeasure;
+              if (unit === 'KILOGRAM') {
+                quantity = `${weight / 1000} kg`;
+              } else if (unit === 'GRAM') {
+                quantity = `${weight} g`;
+              } else if (unit === 'LITER') {
+                quantity = `${weight / 1000} L`;
+              } else if (unit === 'MILLILITRE') {
+                quantity = `${weight} ml`;
+              } else { 
+                quantity = `${weight} ${unit}`;
+              }
+            }
+          } catch (error) {
+            continue;
+          }
 
           if (productMap[productId]) {
             // Check if the variant already exists
@@ -273,7 +293,7 @@ async function runJob(job, jobId, url, pincode) {
               // Add the new variant
               productMap[productId].variant.push({
                 articleId: variantId,
-                quantity: `${product.productVariant.formattedPacksize}`,
+                quantity: quantity,
                 mrp: product.productVariant.mrp,
                 price: product.discountedSellingPrice,
                 varaintUrl: `https://www.zeptonow.com${generateProductUrl({
@@ -297,7 +317,8 @@ async function runJob(job, jobId, url, pincode) {
                   // Add the new variant
                   productMap[titleIdMap[productName]].variant.push({
                     articleId: variantId,
-                    quantity: `${product.productVariant.formattedPacksize}`,
+                    quantity: quantity,
+
                     mrp: product.productVariant.mrp / 100,
                     price: product.discountedSellingPrice / 100,
                     variantUrl: `https://www.zeptonow.com${generateProductUrl({
@@ -319,7 +340,7 @@ async function runJob(job, jobId, url, pincode) {
                   variant: [
                     {
                       articleId: variantId, // Use variantId, not product.id
-                      quantity: `${product.productVariant.formattedPacksize}`, // Consistent format
+                      quantity: quantity, // Consistent format
                       mrp: product.productVariant.mrp / 100,
                       price: product.discountedSellingPrice / 100,
                       variantUrl: `https://www.zeptonow.com${generateProductUrl(
@@ -351,7 +372,7 @@ async function runJob(job, jobId, url, pincode) {
                 variant: [
                   {
                     articleId: variantId, // Use variantId, not product.id
-                    quantity: `${product.productVariant.formattedPacksize}`, // Consistent format
+                    quantity: quantity, // Consistent format
                     mrp: product.productVariant.mrp / 100,
                     price: product.discountedSellingPrice / 100,
                     varaintUrl: `https://www.zeptonow.com${generateProductUrl({
