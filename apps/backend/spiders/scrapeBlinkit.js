@@ -58,6 +58,14 @@ async function runJob(job, jobId, url, pincode) {
         route.continue(); // Allow the request to proceed
       }
     });
+    function cleanProductTitle(title) {
+      return title
+        .replace(/[()]/g, '') // Remove parentheses but keep their content
+        .replace(/\d+\.?\d*\s*(kg|g|l|ml)\b/gi, '') // Remove weight/volume measurements (e.g., 10kg, 500g, 1.5l, 250ml)
+        .replace(/-/g, ' ') // Replace hyphens with spaces (optional adjustment)
+        .replace(/\s{2,}/g, ' ') // Collapse multiple spaces to one
+        .trim(); // Remove leading/trailing spaces
+    }
     await pinCode.dispatchEvent('click');
     // go to the main subcategory to get all of them one by one
     await page.click('.category-list a:first-child');
@@ -306,9 +314,7 @@ async function runJob(job, jobId, url, pincode) {
             product?.data?.product?.inventory;
 
           let productName = product?.tracking?.widget_meta?.title || '';
-          if (productName) {
-            productName = productName.split(' - ')[0];
-          }
+          productName = cleanProductTitle(productName);
           let imageUrl = '';
 
           const variants = [];
