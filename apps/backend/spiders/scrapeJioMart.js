@@ -1,597 +1,531 @@
-import { appendFile } from 'fs/promises';
-import playwright from 'playwright';
-import { uuid } from 'uuidv4';
-// import { scrapeJobs } from '../index.js';
-import { appendToJsonFile } from '../utils/save.js';
+import { chromium } from 'playwright';
+import fs from 'fs/promises';
+import path from 'path';
+
+// Configuration constants
+const DEFAULT_TIMEOUT = 10000; // 60 seconds
+const SCROLL_TIMEOUT = 1000; // 1 second
+const MAX_RETRIES = 3;
+const CONCURRENT_PRODUCT_LIMIT = 5; // Number of products to process concurrently
 
 async function runJob(job, jobId, url, pincode) {
-  const browser = await playwright.chromium.launch({
-    headless: true // Set to true for headless mode
+  console.log(`Starting scrape job for ${url} with pincode ${pincode}`);
+  const browser = await chromium.launch({
+    headless: false // Run headless for better performance
   });
-  const startTime = performance.now(); // Record the start time
+  const startTime = performance.now();
+  let products = [];
+  let fileName = '';
 
   try {
-    // Create a new Playwright context
-    const context = await browser.newContext();
+    // Create browser context with optimized settings
+    const context = await browser.newContext({
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      // viewport: { width: 1280, height: 720 },
+      bypassCSP: true
+    });
+
+    // Block unnecessary resources to improve performance
+    // await context.route(
+    //   /\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|css)$/i,
+    //   (route) => route.abort()
+    // );
+    // await context.route(/\/(analytics|tracking|advertisement|ad)\//i, (route) =>
+    //   route.abort()
+    // );
+
     const page = await context.newPage();
-    // Navigate to the target URL
-    console.log("going to url", url);
-    await page.goto(url);
-    // scrapeJobs[jobId].progress = 5; // Initial progress
+    page.setDefaultTimeout(DEFAULT_TIMEOUT);
 
-    // const categoryName = (
-    //   await page.locator('ul.jm-breadcrumbs-list > li:last-child',timeout=60000).textContent()
-    // )
-    //   .trim()
-    //   .replace(/\s+/g, '-') // Replace spaces with hyphens
-    //   .replace(/[&]/g, 'and') // Replace '&' with 'and'
-    //   .replace(/[^a-zA-Z0-9-_]/g, '') // Remove any other special characters
-    //   .toLowerCase();
-
-    await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
-
-    // Click the button to show the pincode popup
-    await page.waitForSelector('#btn_pin_code_delivery', {
-      timeout: 3 * 60000
-    });
-    const pinCodePop = page.locator('#btn_pin_code_delivery');
-    await pinCodePop.click();
-
-    // Click the button to enter pincode
-    const enterPinCode = page.locator('#btn_enter_pincode');
-    await enterPinCode.click();
-
-    // Fill in the pincode
-    const pinCodeInput = page.locator('#rel_pincode');
-    await pinCodeInput.fill(pincode);
-
-    // Click the submit button
-    const submitButton = page.locator('#btn_pincode_submit');
-    let foundRequest = false;
-    let promiseRes = null;
-    const promise = new Promise((resolve, reject) => {
-      promiseRes = resolve;
-    });
-
-    await page.route('**/*', async (route) => {
-      const request = route.request();
-      if (
-        !request
-          .url()
-          .includes('https://3yp0hp3wsh-dsn.algolia.net/1/indexes/*/queries')
-      ) {
-        return route.continue();
+    // Navigate to the target URL with retry logic
+    let navigationSuccess = false;
+    for (
+      let attempt = 0;
+      attempt < MAX_RETRIES && !navigationSuccess;
+      attempt++
+    ) {
+      try {
+        await page.goto(url, {
+          waitUntil: 'domcontentloaded',
+          timeout: DEFAULT_TIMEOUT
+        });
+        navigationSuccess = true;
+      } catch (error) {
+        console.log(
+          `Navigation attempt ${attempt + 1} failed: ${error.message}`
+        );
+        if (attempt === MAX_RETRIES - 1) throw error;
+        await page.waitForTimeout(2000); // Wait before retry
       }
-      if (!foundRequest) {
-        foundRequest = true;
-        let postData = route.request().postData();
-        const formData = new URLSearchParams(postData);
-        const filters = formData.get('filters');
-        let res;
-        let json;
-        try {
-          res = await route.fetch();
-          json = await res.json();
-        } catch (error) {
-          console.error('Error fetching data:', error);
-        }
-        let batch = 0;
-        let total = 0;
-        while (true) {
-          const { arr: transformed, done } = await page.evaluate(
-            async ({ filters, json, batch, total }) => {
-              const arr = [];
-              var url_path = window.location.pathname;
-              let seller_id = 0;
-              -1 != url_path.indexOf('/s/') && (seller_id = window.plp_cat_id);
-              let master_code = window.default_vertical_city_code;
-              localStorage.getItem('jio_region_codes') &&
-                (master_code = JSON.parse(
-                  localStorage.getItem('jio_region_codes')
-                ));
-              let show_variants = parseInt(window.show_variant);
-              function transformItems(items, results) {
-                if (results) {
-                  let store_code = [];
-                  for (let vertical in master_code)
-                    if (master_code[vertical])
-                      for (let k in master_code[vertical])
-                        store_code.push(master_code[vertical][k]);
+    }
 
-                  const nowTimestamp = Date.now();
-                  for (let i = 0; i < items.length; i++) {
-                    if (items[i].jioads_banner) continue;
-                    items[i].jioads_banner = !1;
-                    var item = items[i];
-                    if (
-                      (item.selling_price &&
-                        item.mrp &&
-                        ((items[i].selling_price = parseFloat(
-                          item.selling_price
-                        ).toFixed(2)),
-                        (items[i].mrp = parseFloat(item.mrp).toFixed(2))),
-                      (items[i].positions = i + 1),
-                      item.seller_names &&
-                        item.seller_names[0] &&
-                        (items[i].seller_names_3p = item.seller_names[0]),
-                      item.brand && (items[i].brand = item.brand.toUpperCase()),
-                      (items[i].promo_text = ''),
-                      item.tag && '' != item.tag)
-                    ) {
-                      let show_tag = !1;
-                      null == item.tag_todate || '' == item.tag_todate
-                        ? (show_tag = !0)
-                        : item.tag_todate >= nowTimestamp && (show_tag = !0),
-                        (items[i].tag = show_tag ? item.tag : '');
-                    }
-                    items[i].tag_name && (items[i].tag = items[i].tag_name),
-                      item.payment_tag &&
-                      '' != item.payment_tag &&
-                      item.payment_tag_todate &&
-                      '' != item.payment_tag_todate &&
-                      item.payment_tag_todate >= nowTimestamp
-                        ? (items[i].payment_tag = item.payment_tag)
-                        : (items[i].payment_tag = ''),
-                      item.mart_availability &&
-                      '' != item.mart_availability &&
-                      null != item.mart_availability &&
-                      null != item.mart_availability
-                        ? (items[i].mart_availability = item.mart_availability)
-                        : (items[i].mart_availability = ''),
-                      (items[i].sell_price_value = 0),
-                      delete items[i].category_type,
-                      delete items[i].available_stores;
-                    let prod_vert = item.vertical_code,
-                      size = window.image_core_config.ALL;
-                    window.image_core_config[prod_vert] &&
-                      (size = window.image_core_config[prod_vert]),
-                      (items[i].image_url =
-                        image_base +
-                        'images/product/original/' +
-                        item.image_path +
-                        '?im=Resize=(' +
-                        size +
-                        ')'),
-                      (items[i].fashion_image_class = ''),
-                      (items[i].show_brand = !1),
-                      'FASHION' == prod_vert &&
-                        ((items[i].fashion_image_class = 'fashion-variant'),
-                        (items[i].show_brand = !0)),
-                      (items[i].discount_class =
-                        'FASHION' == prod_vert ||
-                        'GROCERIES' == prod_vert ||
-                        'BEAUTY' == prod_vert
-                          ? 'row-discount'
-                          : ''),
-                      (items[i].mrp_text =
-                        'GROCERIES' == prod_vert ||
-                        'PREMIUMFRUITS' == prod_vert ||
-                        'HOMEANDKITCHEN' == prod_vert
-                          ? window.mrp_label
-                          : '');
-                    let vert_region_codes = master_code[prod_vert]
-                        ? master_code[prod_vert]
-                        : [],
-                      price_obj = {};
-                    if (
-                      ((items[i].deals_available = !1),
-                      items[i].type && 'sponsored' == items[i].type)
-                    );
-                    else if (0 == seller_id) {
-                      delete items[i].seller_wise_mrp;
-                      for (let p in vert_region_codes) {
-                        let vcode = vert_region_codes[p];
-                        if (
-                          item.buybox_mrp[vcode] &&
-                          item.buybox_mrp[vcode].available
-                        ) {
-                          (price_obj = item.buybox_mrp[vcode]),
-                            Object.keys(items[i].buybox_mrp).forEach(function (
-                              code
-                            ) {
-                              code != vcode && delete items[i].buybox_mrp[code];
-                            });
-                          break;
-                        }
-                      }
-                    } else {
-                      delete items[i].buybox_mrp;
-                      for (let p in vert_region_codes) {
-                        let vcode = vert_region_codes[p];
-                        if (
-                          item.seller_wise_mrp[vcode] &&
-                          item.seller_wise_mrp[vcode][seller_id] &&
-                          item.seller_wise_mrp[vcode][seller_id].available
-                        ) {
-                          (price_obj = item.seller_wise_mrp[vcode][seller_id]),
-                            Object.keys(items[i].seller_wise_mrp).forEach(
-                              function (code) {
-                                code != vcode &&
-                                  delete items[i].seller_wise_mrp[code];
-                              }
-                            );
-                          break;
-                        }
-                      }
-                    }
-                    if (
-                      (items[i].type && 'sponsored' == items[i].type
-                        ? (items[i].is_sponsored = !0)
-                        : ((items[i].seller_id = 0),
-                          (items[i].is_sponsored = !1)),
-                      Object.keys(price_obj).length > 0)
-                    ) {
-                      let reg_value = price_obj;
-                      items[i].seller_id = reg_value.seller_id;
-                      let sellprice = reg_value.price,
-                        mrp = reg_value.mrp;
-                      (items[i].selling_price =
-                        parseFloat(sellprice).toFixed(2)),
-                        (items[i].mrp = parseFloat(mrp).toFixed(2));
-                      let save = mrp - sellprice;
-                      if (
-                        (null != reg_value.deal_price &&
-                          reg_value.deal_price > 0 &&
-                          ((items[i].selling_price = parseFloat(
-                            reg_value.deal_price
-                          ).toFixed(2)),
-                          (save = mrp - reg_value.deal_price)),
-                        items[i].hasOwnProperty('selling_price') &&
-                          items[i].selling_price > 0 &&
-                          (items[i].sell_price_value = items[i].selling_price),
-                        (items[i].selling_price = items[i].selling_price
-                          .toString()
-                          .replace(/\B(?=(\d{3})+(?!\d))/g, ',')),
-                        (items[i].mrp = items[i].mrp
-                          .toString()
-                          .replace(/\B(?=(\d{3})+(?!\d))/g, ',')),
-                        (items[i].save = save),
-                        (items[i].save_foramt = parseFloat(save).toFixed(2)),
-                        (items[i].discount_pct = reg_value.discount_pt),
-                        (items[i].promo_text = reg_value.promo_description),
-                        '0' != window.ds2_lightning_label &&
-                          (items[i].deals_available =
-                            null != reg_value.deal_price &&
-                            reg_value.deal_price > 0),
-                        reg_value.weight_range &&
-                          '' != reg_value.weight_range &&
-                          (items[i].display_name =
-                            item.display_name +
-                            ' (Approx ' +
-                            reg_value.weight_range +
-                            ')'),
-                        item.uom_for_price_compare_value &&
-                          item.uom_for_price_compare_unit &&
-                          item.uom_for_price_compare_factor)
-                      ) {
-                        let uom = (
-                          sellprice * item.uom_for_price_compare_factor
-                        ).toFixed(2);
-                        items[i].unitPrice = uom;
-                        items[i].uom =
-                          uom +
-                          '/' +
-                          item.uom_for_price_compare_value +
-                          ' ' +
-                          item.uom_for_price_compare_unit +
-                          ')';
-                      }
-                    }
-                    if (
-                      ((items[i].smart_bazaar = !1),
-                      'yes' != localStorage.getItem('jio_smart_bazaar') &&
-                        'GROCERIES' == prod_vert &&
-                        items[i].seller_id == window.smart_seller_id &&
-                        (items[i].smart_bazaar = !0),
-                      !items[i].mart_availability ||
-                        ('JIO' != items[i].mart_availability &&
-                          'JIO_INSTA' != items[i].mart_availability) ||
-                        (items[i].smart_bazaar = !1),
-                      (items[i].show_cart = !0),
-                      ('FASHION' != prod_vert &&
-                        'WELLNESS' != prod_vert &&
-                        'ELECTRONICS' != prod_vert &&
-                        'FURNITURE' != prod_vert) ||
-                        (items[i].show_cart = !1),
-                      1 == $('#ld_landing_page').val() &&
-                        (items[i].show_cart = !0),
-                      items[i].common_attributes &&
-                        items[i].common_attributes.lock_status &&
-                        'lockable' == items[i].common_attributes.lock_status &&
-                        (items[i].locked_txt = window.locked_phone_html),
-                      (items[i].show_variants = show_variants),
-                      items[i].variants && show_variants)
-                    ) {
-                      let is_color_variant = items[i].variants.some(
-                        (el) => 'colour' === el.facet_name
-                      );
-                      if (is_color_variant) {
-                        items[i].variants.length > 5 &&
-                          ((items[i].variant_remaining =
-                            items[i].variants.length - 5),
-                          (items[i].variants = items[i].variants.slice(0, 5)));
-                        for (let j = 0; j < items[i].variants.length; j++)
-                          items[i].variants[j].swatch_image &&
-                            -1 ===
-                              items[i].variants[j].swatch_image.indexOf(
-                                image_base
-                              ) &&
-                            (items[i].variants[j].swatch_image =
-                              image_base +
-                              'images/product/original/' +
-                              items[i].variants[j].swatch_image);
-                      }
-                      items[i].is_color_variant = is_color_variant;
-                    }
-                    if (
-                      (items[i].variants || (items[i].show_variants = !1),
-                      items[i].variants &&
-                        0 == items[i].variants.length &&
-                        (items[i].show_variants = !1),
-                      (items[i].variant_attribute = ''),
-                      items[i].show_variants)
-                    ) {
-                      let variant_attribute =
-                        items[i].variants[0].facet_name.toLowerCase();
-                      items[i].variant_value = items[i][variant_attribute];
-                      let variants_sku = items[i].variants.map((vari) => ({
-                        product_code: vari.product_code,
-                        facet_value: vari.facet_value
-                      }));
-                      variants_sku.unshift({
-                        product_code: items[i].product_code,
-                        facet_value: items[i].variant_value
-                      }),
-                        (items[i].variants_sku = JSON.stringify(variants_sku)),
-                        (items[i].variant_attribute = variant_attribute);
-                    }
-                    if (
-                      ((items[i].option_code = (
-                        items[i].option_code || ''
-                      ).replace(/ /g, '_')),
-                      'ELECTRONICS' == prod_vert &&
-                        '1' == window.preorder_status &&
-                        item.pre_order_enabled &&
-                        !0 === item.pre_order_enabled &&
-                        item.pre_order)
-                    ) {
-                      items[i].tag = 'Pre Order';
-                      let pre_order = item.pre_order;
-                      if (
-                        pre_order.pre_launch_date &&
-                        pre_order.start_date &&
-                        pre_order.price_visibility
-                      ) {
-                        let currentTime = new Date().getTime(),
-                          pre_launch_date,
-                          pre_launch_time,
-                          pre_launch_date_time =
-                            pre_order.pre_launch_date.split(' ')[0] +
-                            'T' +
-                            pre_order.pre_launch_date.split(' ')[1] +
-                            '.000+05:30';
-                        pre_launch_date_time = new Date(
-                          pre_launch_date_time
-                        ).getTime();
-                        let pre_launch_start_date =
-                            pre_order.start_date.split(' ')[0],
-                          pre_launch_start_time =
-                            pre_order.start_date.split(' ')[1],
-                          pre_launch_start_date_time,
-                          pre_launch_start_date_time_stamp = new Date(
-                            pre_launch_start_date +
-                              'T' +
-                              pre_launch_start_time +
-                              '.000+05:30'
-                          ).getTime();
-                        pre_launch_date_time <= currentTime &&
-                          pre_launch_start_date_time_stamp >= currentTime &&
-                          !1 === pre_order.price_visibility &&
-                          ((items[i].selling_price = 0),
-                          (items[i].sell_price_value = 0));
-                      }
-                    }
-                    if (
-                      (item.cellular_type &&
-                        '5G' === item.cellular_type &&
-                        (items[i].free_sim_txt = window.free_sim_text),
-                      (items[i].food_icon = ''),
-                      items[i].food_type)
-                    ) {
-                      let food_type = item.food_type.toLowerCase();
-                      'green dot' == food_type
-                        ? (items[i].food_icon = 'icon-veg')
-                        : 'red dot' == food_type &&
-                          (items[i].food_icon = 'icon-non-veg');
-                    }
-                    items[i].elec_in_stock = 1;
-                    let inventory_code,
-                      elec_inv = JSON.parse(
-                        localStorage.getItem('jio_inventory_store_code')
-                      )[prod_vert],
-                      prod_inventory,
-                      in_out_stock;
-                    elec_inv.unshift('ALL'),
-                      (elec_inv = elec_inv.map((code) => code.toUpperCase())),
-                      0 ==
-                        item.inventory_stores
-                          .map((code) => code.toUpperCase())
-                          .filter((element) => elec_inv.includes(element))
-                          .length && (items[i].elec_in_stock = 0),
-                      items[i].hasOwnProperty('available_at_3p_seller') &&
-                      1 == items[i].available_at_3p_seller
-                        ? (items[i].available_at_3p_seller_flag = '3P')
-                        : (items[i].available_at_3p_seller_flag = '1P');
-                  }
-                  return items;
-                }
-              }
-              let index_name = window.algolia_suffix + '_master_vertical';
-              const x = algoliasearch(
-                window.algolia_app_id,
-                window.algolia_api_key,
-                {
-                  timeouts: {
-                    connect: 5,
-                    read: 60
-                  }
-                }
-              );
-              const index = x.initIndex(index_name);
-              async function divide(from, to) {
-                const data = await index.search('', {
-                  filters: `itemId: ${from} TO ${to} AND ` + filters,
-                  hitsPerPage: 1
-                  // paginationLimitedTo: 1000000
-                });
-                console.log('Got data ', data.nbHits);
-                if (data.nbHits <= 1000 || to - from <= 1000) {
-                  const data = await index.search('', {
-                    filters: `itemId: ${from} TO ${to} AND ` + filters,
-                    hitsPerPage: 1000
-                    // paginationLimitedTo: 1000000
-                  });
-                  return transformItems(data.hits, json.results[0]).map(
-                    (item) => ({
-                      name: item.display_name || 'Unknown Product',
-                      brand: item.brand || 'Unknown Brand',
-                      unitPrice: item.mrp || '0.00',
-                      salePrice: item.sell_price_value || '0.00',
-                      variant: item.variant_attribute ? item.size : 'N/A',
-                      image: item.image_url || 'default-image.jpg',
-                      url: item.url_path || '#',
-                      uom: item.uom || 'N/A',
-                      uom_for_price_compare_factor:
-                        item.uom_for_price_compare_factor || 'N/A',
-                      uom_for_price_compare_unit:
-                        item.uom_for_price_compare_unit || 'N/A',
-                      uom_for_price_compare_value:
-                        item.uom_for_price_compare_value || 'N/A',
-                      discount_pct: item.discount_pct || 0,
-                      discount: item.save || '0.00',
-                      seller_names: item.seller_names || []
-                    })
-                  );
-                }
-                const mid = Math.floor((from + to) / 2);
-                const left = await divide(from, mid);
-                const right = await divide(mid, to);
-                return [...left, ...right];
-              }
-              let j = 2;
-              let i = j * batch;
-              let done = false;
+    // Extract category name for filename
+    const categoryElement = await page
+      .waitForSelector('ul.jm-breadcrumbs-list > li:last-child', {
+        timeout: 10000
+      })
+      .catch(() => null);
 
-              try {
-                while (true) {
-                  const from = i * 100000;
-                  const to = (i + 1) * 100000;
-                  const data = await divide(from, to);
-                  arr.push(...(data ?? []));
-                  console.log('Got data ', data.length, ' Total :', arr.length);
-                  i++;
-                  await new Promise((resolve) => setTimeout(resolve, 50));
-                  try {
-                    const obj = await index.findObject(() => true, {
-                      filters: `itemId > ${from} AND ` + filters
-                    });
-                    console.log(obj);
-                  } catch (e) {
-                    done = true;
-                    break;
-                  }
-                  if (--j === 0) break;
-                }
-              } catch (e) {
-                console.log(e);
-              }
-              return { arr, done };
-            },
-            { filters, json, batch, total }
-          );
-          let prevTotal = total;
-          total += transformed.length;
-          let progress = (total / json.results[0].nbHits) * 100;
-          if (progress > 100) progress = 90;
-          if (progress < 5) progress = 5;
-          // scrapeJobs[jobId] = {
-          // ...scrapeJobs[jobId],
-          // progress,
-          // total_products: total
-          // };
-          console.log(
-            `${url}:${pincode} Processed ${total} out of ${json.results[0].nbHits}`
-          );
-          console.log('Last batch size: ', transformed.length);
-          // check first if cancelled
-          if (transformed.length) {
-            try {
-              // do not add empty batches
-              const filename = `JioMart-${pincode}-${''}-products`;
-              await appendToJsonFile(
-                `./jobs/${jobId}/${filename}.json`,
-                transformed
-              );
-              await appendFile(
-                `./jobs/${jobId}/${prevTotal}_${total}.json`,
-                JSON.stringify(transformed, null, 2)
-              );
-            } catch (e) {
-              console.log('Error saving data', e);
-            }
-          }
-          // if (scrapeJobs[jobId].status === 'cancelled') {
-          //   return promiseRes();
-          // }
-          if (done) {
-            break;
-          }
-          batch++;
-        }
-        console.log('Total products: ', total);
-        console.log('done');
-        // Finish the promise after processing all pages
-        // if (scrapeJobs[jobId].status === 'cancelled') {
-        // return promiseRes();
+    let categoryName = 'grocery-category';
+    if (categoryElement) {
+      categoryName = (await categoryElement.innerText())
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[&]/g, 'and')
+        .replace(/[^a-zA-Z0-9-_]/g, '')
+        .toLowerCase();
+    }
+
+    fileName = `JioMart-${pincode}-${categoryName}-products`;
+    job.attrs.data.progress = 5;
+    await job.save();
+    // Handle pincode entry with retry
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        await handlePincodeEntry(page, pincode);
+        break;
+      } catch (error) {
+        console.log(
+          `Pincode entry attempt ${attempt + 1} failed: ${error.message}`
+        );
+        if (attempt === MAX_RETRIES - 1) throw error;
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2000);
+      }
+    }
+
+    // Get subcategory links
+    const links = await page.locator('.jm-list-content-title a').all();
+    const subcategoryUrls = [];
+
+    for (const link of links) {
+      const href = await link.getAttribute('href');
+      if (href) {
+        subcategoryUrls.push(`https://www.jiomart.com${href}`);
+      }
+    }
+
+    console.log(`Found ${subcategoryUrls.length} subcategories to scrape`);
+    // let cnt = 0;
+    let idx = 0;
+    // Process each subcategory
+    for (const subcategoryUrl of subcategoryUrls) {
+      idx++;
+      try {
+        console.log(`Processing subcategory: ${subcategoryUrl}`);
+        // cnt++;
+        // if (cnt == 2) {
+        //   break;
         // }
-        const filename = `JioMart-${pincode}-${''}-products`;
-        // scrapeJobs[jobId] = {
-        //   url,
-        //   pincode,
-        //   status: 'completed',
-        //   progress: 100,
-        //   total_products: total,
-        //   filename
-        // };
-        // // write stats to a file
-        // await appendFile(
-        //   `./jobs/${jobId}/stats.json`,
-        //   JSON.stringify(scrapeJobs[jobId], null, 2)
-        // );
-        promiseRes();
-      } else {
-        route.continue();
-      }
-    });
+        // Navigate to subcategory with retry logic
+        let subcatNavigationSuccess = false;
+        for (
+          let attempt = 0;
+          attempt < MAX_RETRIES && !subcatNavigationSuccess;
+          attempt++
+        ) {
+          try {
+            await page.goto(subcategoryUrl, {
+              waitUntil: 'load',
+              timeout: DEFAULT_TIMEOUT
+            });
+            subcatNavigationSuccess = true;
+          } catch (error) {
+            console.log(
+              `Subcategory navigation attempt ${attempt + 1} failed: ${
+                error.message
+              }`
+            );
+            if (attempt === MAX_RETRIES - 1) throw error;
+            await page.waitForTimeout(2000);
+          }
+        }
 
-    await submitButton.click();
-    await promise; // Wait for all data to be processed
+        // Wait for product list and implement efficient scrolling
+        await page.waitForSelector('.ais-InfiniteHits-list', {
+          timeout: 30000
+        });
+
+        const subcategoryProducts = await loadAllProducts(page, pincode);
+        products = [...products, ...subcategoryProducts];
+        job.attrs.data.progress = (idx / subcategoryUrls.length) * 100;
+        job.attrs.data.total_products = products.length;
+        await job.save();
+        // Save intermediate results for safety
+        if (subcategoryProducts.length > 0) {
+          const tempFileName = `${fileName}-temp-${Date.now()}`;
+          // await saveProductsToFile(subcategoryProducts, tempFileName);
+        }
+      } catch (error) {
+        console.error(
+          `Error processing subcategory ${subcategoryUrl}: ${error.message}`
+        );
+        // Continue with next subcategory instead of failing entirely
+      }
+    }
+    job.attrs.data.progress = 100;
+    job.attrs.data.total_products = products.length;
+    await job.save();
+    console.log(`Total products collected: ${products.length}`);
+    return [products, fileName];
   } catch (error) {
-    console.log(`Job ${jobId} failed with error: ${error.message}`);
-    return [[], null];
+    console.error(`Job failed with error: ${error.message}`);
+    // Return any products collected so far
+    return [products, fileName];
   } finally {
-    // await browser.close();
+    await browser.close();
     const endTime = performance.now();
-    const duration = endTime - startTime;
-    //   console.log(
-    //     `Job ${jobId} ${scrapeJobs[jobId].status} in ${duration / 1000} seconds`
-    //   );
-    //   scrapeJobs[jobId].duration = duration / 1000;
+    const duration = (endTime - startTime) / 1000;
+    console.log(`Job completed in ${duration.toFixed(2)} seconds`);
+  }
+}
+
+async function handlePincodeEntry(page, pincode) {
+  try {
+    await page.waitForSelector('#btn_pin_code_delivery', { timeout: 10000 });
+    await page.click('#btn_pin_code_delivery');
+
+    await page.waitForSelector('#btn_enter_pincode', { timeout: 10000 });
+    await page.click('#btn_enter_pincode');
+
+    await page.waitForSelector('#rel_pincode', { timeout: 10000 });
+    await page.fill('#rel_pincode', pincode);
+
+    await page.click('#btn_pincode_submit');
+
+    await page.waitForSelector('.ais-InfiniteHits-list', { timeout: 15000 });
+  } catch (error) {
+    throw new Error(`Pincode error: ${error.message}`);
+  }
+}
+
+async function loadAllProducts(page, pincode) {
+  console.log('Loading all products...');
+  let prevCount = 0;
+  let currentCount = 0;
+  let scrollAttempts = 0;
+  const MAX_SCROLL_ATTEMPTS = 5; // Stop clicking if no new items after 5 attempts
+
+  try {
+    do {
+      prevCount = currentCount;
+
+      // Get current product count
+      currentCount = await page.locator('.ais-InfiniteHits-list li').count();
+      console.log(`Current product count: ${currentCount}`);
+
+      // Check if the "Load More" button is disabled
+      const isDisabled = await page
+        .locator('.ais-InfiniteHits-loadMore--disabled')
+        .count();
+
+      if (isDisabled > 0) {
+        console.log('No more products to load.');
+        break;
+      }
+
+      // Click "Load More" button
+      // await page.locator('.ais-InfiniteHits-list li:last-child').scrollIntoViewIfNeeded();
+      // await page.locator('.ais-InfiniteHits-loadMore').scrollIntoViewIfNeeded();
+      await page.evaluate(() => {
+        document
+          .querySelector('.ais-InfiniteHits-loadMore')
+          .scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.querySelector('.ais-InfiniteHits-loadMore').click();
+      });
+
+      // Wait for potential new content to load
+      await page.waitForTimeout(4000);
+      // Check if new products were loaded
+      if (prevCount === currentCount) {
+        scrollAttempts++;
+        if (scrollAttempts >= MAX_SCROLL_ATTEMPTS) {
+          console.log(
+            'No new products after multiple attempts, assuming all products loaded'
+          );
+          break;
+        }
+      } else {
+        scrollAttempts = 0; // Reset counter if new products are loaded
+      }
+    } while (scrollAttempts < MAX_SCROLL_ATTEMPTS);
+
+    // Extract product data
+    return await extractProductsData(page, pincode);
+  } catch (error) {
+    console.error(`Error loading products: ${error.message}`);
+    return [];
+  }
+}
+
+async function extractProductsData(page, pincode) {
+  console.log('Extracting products data...');
+  const products = [];
+
+  // Get all product elements
+  const productElements = await page
+    .locator('.ais-InfiniteHits-list li:not([style*="display: none"])')
+    .all();
+  console.log(`Found ${productElements.length} product elements`);
+
+  // Process in batches to avoid memory issues
+  for (let i = 0; i < productElements.length; i += CONCURRENT_PRODUCT_LIMIT) {
+    const batchSize = Math.min(
+      CONCURRENT_PRODUCT_LIMIT,
+      productElements.length - i
+    );
+    console.log(
+      `Processing batch ${i / CONCURRENT_PRODUCT_LIMIT + 1}: ${i} to ${
+        i + batchSize - 1
+      }`
+    );
+
+    const batchPromises = [];
+
+    for (let j = 0; j < batchSize; j++) {
+      const index = i + j;
+      if (index < productElements.length) {
+        // Use locator with nth to get each product element
+        const productLocator = page
+          .locator(
+            '.ais-InfiniteHits-list li:not([style*="display: none"]):has(a)'
+          )
+          .nth(index);
+        batchPromises.push(extractSingleProduct(page, productLocator, pincode));
+      }
+    }
+
+    const batchResults = await Promise.allSettled(batchPromises);
+
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled' && result.value) {
+        products.push(result.value);
+      }
+    }
+
+    console.log(
+      `Processed ${Math.min(i + batchSize, productElements.length)}/${
+        productElements.length
+      } products`
+    );
+  }
+
+  return products;
+}
+
+async function extractSingleProduct(page, productLocator, pincode) {
+  try {
+    // Extract title
+    const titleLocator = productLocator.locator('.plp-card-details-name');
+    if ((await titleLocator.count()) === 0) {
+      console.log('Title element not found, skipping product');
+      return null;
+    }
+
+    const title = await titleLocator.innerText();
+
+    // Extract price
+    const priceLocator = productLocator.locator(
+      '.plp-card-details-price span:first-child'
+    );
+    let price = '';
+    if ((await priceLocator.count()) > 0) {
+      price = await priceLocator.innerText();
+      price = price.replace(/[^\d.]/g, '');
+    }
+
+    // Extract MRP
+    const mrpLocator = productLocator.locator(
+      '.plp-card-details-price span:last-child'
+    );
+    let mrp = '';
+    if ((await mrpLocator.count()) > 0) {
+      mrp = await mrpLocator.innerText();
+      mrp = mrp.replace(/[^\d.]/g, '');
+    } else {
+      mrp = price;
+    }
+
+    // Extract brand and product code
+    const brandLocator = productLocator.locator('div.gtmEvents');
+    let brand = '';
+    let productCode = null;
+
+    if ((await brandLocator.count()) > 0) {
+      brand = (await brandLocator.getAttribute('data-manu')) || '';
+      productCode = (await brandLocator.getAttribute('data-id')) || '';
+    }
+
+    // Extract image URL
+    const imageLocator = productLocator.locator('.plp-card-image img');
+    let imageUrl = '';
+    if ((await imageLocator.count()) > 0) {
+      imageUrl = (await imageLocator.getAttribute('src')) || '';
+    }
+
+    // Extract product URL
+    const linkLocator = productLocator.locator('> a');
+    let productUrl = '';
+    if ((await linkLocator.count()) > 0) {
+      const href = (await linkLocator.getAttribute('href')) || '';
+      productUrl = `https://www.jiomart.com${href}`;
+    }
+
+    // Create original variant
+    const variants = [];
+    const originalVariant = {
+      articleId: productCode ? Number(productCode) : null,
+      quantity: extractQuantity(title),
+      mrp: Number(mrp),
+      price: Number(price),
+      variantUrl: productUrl
+    };
+    // get rest of the variants
+    const variantButton = productLocator.locator('div[data-variants-sku]');
+    if (await variantButton.isVisible()) {
+      try {
+        await variantButton.click();
+        await page.waitForTimeout(2000);
+        await page.waitForFunction(
+          () => {
+            const el = document.querySelector('#variants_dialog_content');
+            return el && el.innerText.trim() !== 'Loading..';
+          },
+          { timeout: 60000 }
+        );
+
+        const variantElements = await page
+          .locator('#variants_dialog_content li')
+          .all();
+        for (const variantElement of variantElements) {
+          const variant = await extractVariantData(variantElement);
+          if (variant) {
+            variants.push(variant);
+          }
+        }
+        await page.click('#btn_variants_close');
+
+        await page.waitForTimeout(500);
+      } catch (error) {
+        await page.evaluate(() =>
+          document.querySelector('.jm-panel-backdrop').click()
+        );
+        console.log(
+          `failed to get variants for product with title ${title}  and error is -> ${error}`
+        );
+      }
+    }
+    if (variants.length === 0) {
+      variants.push(originalVariant);
+    }
+    // Return the product object
+    return {
+      title,
+      brand,
+      variants: variants, // Simplified to just use the original variant
+      url: productUrl,
+      imageUrl,
+      pinCode: Number(pincode)
+    };
+  } catch (error) {
+    console.error(`Error extracting product data: ${error.message}`);
+    return null;
+  }
+}
+
+async function saveProductsToFile(products, fileName) {
+  try {
+    const outputDir = path.join(process.cwd(), 'output');
+    await fs.mkdir(outputDir, { recursive: true });
+
+    const filePath = path.join(outputDir, `${fileName}.json`);
+    await fs.writeFile(filePath, JSON.stringify(products, null, 2));
+
+    console.log(`Saved ${products.length} products to ${filePath}`);
+  } catch (error) {
+    console.error(`Error saving products to file: ${error.message}`);
   }
 }
 
 export async function main(job, jobId, url, pincode) {
-  // scrapeJobs[jobId] = { status: 'running', progress: 0, total_products: 0 };
-  // Start the job asynchronously
   return await runJob(job, jobId, url, pincode);
+  // if (products.length > 0 && fileName) {
+  //   // Save final results
+  //   await saveProductsToFile(products, fileName);
+  //   console.log(
+  //     `Job completed successfully. Scraped ${products.length} products.`
+  //   );
+  //   return products;
+  // } else {
+  //   console.log('Job completed but no products were found.');
+  //   return [];
+  // }
 }
+function extractQuantity(title) {
+  const quantityPattern =
+    /(\d+\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch)\b)/i;
+  const match = title.match(quantityPattern);
+  return match ? match[0] : null;
+}
+async function extractVariantData(variantElement) {
+  const tx = await variantElement.innerText();
+  if (tx.toLowerCase().includes('out of stock')) {
+    return null;
+  }
+  let priceElement = variantElement.locator(
+    '.jm-list-content > div  >  span.jm-body-xs'
+  );
+  let price = '';
+  if ((await priceElement.count()) > 0) {
+    // replace any non digit character with empty string except
+    priceElement = await priceElement.innerText();
+    if (priceElement) {
+      price = priceElement.replace(/[^\d.]/g, '');
+    }
+  }
+  let mrpElement = variantElement.locator(
+    '.jm-list-content > div  >  span.jm-body-xxs'
+  );
+  let mrp = '';
+  if ((await mrpElement.count()) > 0) {
+    mrpElement = await mrpElement.innerText();
+    if (mrpElement) {
+      mrp = mrpElement.replace(/[^\d.]/g, '');
+    }
+  } else {
+    mrp = price;
+  }
+  let quantityElement = variantElement.locator('.jm-list-content p');
+  let quantity = '';
+  if ((await quantityElement.count()) > 0) {
+    quantityElement = await quantityElement.innerText();
+    if (quantityElement) {
+      quantity = quantityElement;
+    }
+  }
+
+  let variantUrlElement = variantElement.locator('a');
+  let variantUrl = '';
+  if ((await variantUrlElement.count()) > 0) {
+    variantUrl = await variantUrlElement.getAttribute('href');
+    if (variantUrl) {
+      variantUrl = `https://www.jiomart.com${variantUrl}`;
+    }
+  }
+  // href="/p/groceries/pringles-sour-cream-and-onion-potato-chips-134-g/593619068"
+  // put the article code as the last code of the link
+  const articleId = variantUrl.split('/').pop();
+  return {
+    articleId: articleId ? Number(articleId) : null,
+    quantity: quantity,
+    price: Number(price),
+    mrp: Number(mrp),
+    variantUrl
+  };
+}
+// if (require.main === module) {
+// main('https://www.jiomart.com/c/groceries/2', '500075');
+//     .then(() => console.log('Scraping completed'))
+//     .catch(err => console.error('Scraping failed:', err));
+// }
