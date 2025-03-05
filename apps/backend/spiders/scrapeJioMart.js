@@ -11,7 +11,7 @@ const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrent
 async function runJob(job, jobId, url, pincode) {
   console.log(`Starting scrape job for ${url} with pincode ${pincode}`);
   const browser = await chromium.launch({
-    headless: false // Run headless for better performance
+    headless: true // Run headless for better performance
   });
   const startTime = performance.now();
   let products = [];
