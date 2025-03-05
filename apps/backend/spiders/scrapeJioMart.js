@@ -6,12 +6,12 @@ import path from 'path';
 const DEFAULT_TIMEOUT = 10000; // 60 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
 const MAX_RETRIES = 3;
-const CONCURRENT_PRODUCT_LIMIT = 5; // Number of products to process concurrently
+const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrently
 
 async function runJob(job, jobId, url, pincode) {
   console.log(`Starting scrape job for ${url} with pincode ${pincode}`);
   const browser = await chromium.launch({
-    headless: true // Run headless for better performance
+    headless: false // Run headless for better performance
   });
   const startTime = performance.now();
   let products = [];
@@ -22,18 +22,18 @@ async function runJob(job, jobId, url, pincode) {
     const context = await browser.newContext({
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      // viewport: { width: 1280, height: 720 },
+      viewport: { width: 1280, height: 720 },
       bypassCSP: true
     });
 
     // Block unnecessary resources to improve performance
-    // await context.route(
-    //   /\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|css)$/i,
-    //   (route) => route.abort()
-    // );
-    // await context.route(/\/(analytics|tracking|advertisement|ad)\//i, (route) =>
-    //   route.abort()
-    // );
+    await context.route(
+      /\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|css)$/i,
+      (route) => route.abort()
+    );
+    await context.route(/\/(analytics|tracking|advertisement|ad)\//i, (route) =>
+      route.abort()
+    );
 
     const page = await context.newPage();
     page.setDefaultTimeout(DEFAULT_TIMEOUT);
@@ -90,89 +90,24 @@ async function runJob(job, jobId, url, pincode) {
           `Pincode entry attempt ${attempt + 1} failed: ${error.message}`
         );
         if (attempt === MAX_RETRIES - 1) throw error;
-        await page.reload({ waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(2000);
+        // await page.reload({ waitUntil: 'domcontentloaded' });
+        // await page.waitForTimeout(2000);
       }
     }
-
-    // Get subcategory links
-    const links = await page.locator('.jm-list-content-title a').all();
-    const subcategoryUrls = [];
-
-    for (const link of links) {
-      const href = await link.getAttribute('href');
-      if (href) {
-        subcategoryUrls.push(`https://www.jiomart.com${href}`);
-      }
-    }
-
-    console.log(`Found ${subcategoryUrls.length} subcategories to scrape`);
-    // let cnt = 0;
-    let idx = 0;
-    // Process each subcategory
-    for (const subcategoryUrl of subcategoryUrls) {
-      idx++;
-      try {
-        console.log(`Processing subcategory: ${subcategoryUrl}`);
-        // cnt++;
-        // if (cnt == 2) {
-        //   break;
-        // }
-        // Navigate to subcategory with retry logic
-        let subcatNavigationSuccess = false;
-        for (
-          let attempt = 0;
-          attempt < MAX_RETRIES && !subcatNavigationSuccess;
-          attempt++
-        ) {
-          try {
-            await page.goto(subcategoryUrl, {
-              waitUntil: 'load',
-              timeout: DEFAULT_TIMEOUT
-            });
-            subcatNavigationSuccess = true;
-          } catch (error) {
-            console.log(
-              `Subcategory navigation attempt ${attempt + 1} failed: ${
-                error.message
-              }`
-            );
-            if (attempt === MAX_RETRIES - 1) throw error;
-            await page.waitForTimeout(2000);
-          }
-        }
-
-        // Wait for product list and implement efficient scrolling
-        await page.waitForSelector('.ais-InfiniteHits-list', {
-          timeout: 30000
-        });
-
-        const subcategoryProducts = await loadAllProducts(page, pincode);
-        products = [...products, ...subcategoryProducts];
-        job.attrs.data.progress = (idx / subcategoryUrls.length) * 100;
-        job.attrs.data.total_products = products.length;
-        await job.save();
-        // Save intermediate results for safety
-        if (subcategoryProducts.length > 0) {
-          const tempFileName = `${fileName}-temp-${Date.now()}`;
-          // await saveProductsToFile(subcategoryProducts, tempFileName);
-        }
-      } catch (error) {
-        console.error(
-          `Error processing subcategory ${subcategoryUrl}: ${error.message}`
-        );
-        // Continue with next subcategory instead of failing entirely
-      }
-    }
+    await page.waitForSelector('.ais-InfiniteHits-list', {
+      timeout: 30000
+    });
+    const allProducts = await loadAllProducts(page, pincode, job);
+    products = [...products, ...allProducts];
     job.attrs.data.progress = 100;
     job.attrs.data.total_products = products.length;
     await job.save();
     console.log(`Total products collected: ${products.length}`);
     return [products, fileName];
   } catch (error) {
-    console.error(`Job failed with error: ${error.message}`);
+    console.error(`Job  with ID : ${jobId}failed with error: ${error.message}`);
     // Return any products collected so far
-    return [products, fileName];
+    return [[], null];
   } finally {
     await browser.close();
     const endTime = performance.now();
@@ -200,7 +135,7 @@ async function handlePincodeEntry(page, pincode) {
   }
 }
 
-async function loadAllProducts(page, pincode) {
+async function loadAllProducts(page, pincode, job = null) {
   console.log('Loading all products...');
   let prevCount = 0;
   let currentCount = 0;
@@ -234,7 +169,6 @@ async function loadAllProducts(page, pincode) {
           .scrollIntoView({ behavior: 'smooth', block: 'center' });
         document.querySelector('.ais-InfiniteHits-loadMore').click();
       });
-
       // Wait for potential new content to load
       await page.waitForTimeout(4000);
       // Check if new products were loaded
@@ -250,67 +184,107 @@ async function loadAllProducts(page, pincode) {
         scrollAttempts = 0; // Reset counter if new products are loaded
       }
     } while (scrollAttempts < MAX_SCROLL_ATTEMPTS);
-
+    if (job) {
+      job.attrs.data.progress = 30;
+      await job.save();
+    }
     // Extract product data
-    return await extractProductsData(page, pincode);
+    return await extractProductsData(page, pincode, job);
   } catch (error) {
     console.error(`Error loading products: ${error.message}`);
     return [];
   }
 }
+async function extractVariantData(variantElement) {
+  const tx = await variantElement.innerText();
+  if (tx.toLowerCase().includes('out of stock')) {
+    return null;
+  }
+  let priceElement = variantElement.locator(
+    '.jm-list-content > div  >  span.jm-body-xs'
+  );
+  let price = '';
+  if ((await priceElement.count()) > 0) {
+    // replace any non digit character with empty string except
+    priceElement = await priceElement.innerText();
+    if (priceElement) {
+      price = priceElement.replace(/[^\d.]/g, '');
+    }
+  }
+  let mrpElement = variantElement.locator(
+    '.jm-list-content > div  >  span.jm-body-xxs'
+  );
+  let mrp = '';
+  if ((await mrpElement.count()) > 0) {
+    mrpElement = await mrpElement.innerText();
+    if (mrpElement) {
+      mrp = mrpElement.replace(/[^\d.]/g, '');
+    }
+  } else {
+    mrp = price;
+  }
+  let quantityElement = variantElement.locator('.jm-list-content p');
+  let quantity = '';
+  if ((await quantityElement.count()) > 0) {
+    quantityElement = await quantityElement.innerText();
+    if (quantityElement) {
+      quantity = quantityElement;
+    }
+  }
 
-async function extractProductsData(page, pincode) {
-  console.log('Extracting products data...');
+  let variantUrlElement = variantElement.locator('a');
+  let variantUrl = '';
+  if ((await variantUrlElement.count()) > 0) {
+    variantUrl = await variantUrlElement.getAttribute('href');
+    if (variantUrl) {
+      variantUrl = `https://www.jiomart.com${variantUrl}`;
+    }
+  }
+  // href="/p/groceries/pringles-sour-cream-and-onion-potato-chips-134-g/593619068"
+  // put the article code as the last code of the link
+  const articleId = variantUrl.split('/').pop();
+  return {
+    articleId: articleId ? Number(articleId) : null,
+    quantity: quantity,
+    price: Number(price),
+    mrp: Number(mrp),
+    variantUrl
+  };
+};
+async function extractProductsData(page, pincode, job = null) {
   const products = [];
+  console.log('Extracting products data...');
 
-  // Get all product elements
   const productElements = await page
     .locator('.ais-InfiniteHits-list li:not([style*="display: none"])')
     .all();
+
   console.log(`Found ${productElements.length} product elements`);
 
-  // Process in batches to avoid memory issues
-  for (let i = 0; i < productElements.length; i += CONCURRENT_PRODUCT_LIMIT) {
-    const batchSize = Math.min(
-      CONCURRENT_PRODUCT_LIMIT,
-      productElements.length - i
-    );
-    console.log(
-      `Processing batch ${i / CONCURRENT_PRODUCT_LIMIT + 1}: ${i} to ${
-        i + batchSize - 1
-      }`
-    );
+  // Process one by one
+  for (let i = 0; i < productElements.length; i++) {
+    console.log(`Processing product ${i + 1}/${productElements.length}`);
 
-    const batchPromises = [];
+    const productLocator = page
+      .locator('.ais-InfiniteHits-list li:not([style*="display: none"]):has(a)')
+      .nth(i);
 
-    for (let j = 0; j < batchSize; j++) {
-      const index = i + j;
-      if (index < productElements.length) {
-        // Use locator with nth to get each product element
-        const productLocator = page
-          .locator(
-            '.ais-InfiniteHits-list li:not([style*="display: none"]):has(a)'
-          )
-          .nth(index);
-        batchPromises.push(extractSingleProduct(page, productLocator, pincode));
-      }
+    try {
+      const product = await extractSingleProduct(page, productLocator, pincode);
+      if (product) products.push(product);
+    } catch (error) {
+      console.error(`Error extracting product at index ${i}:`, error);
+      continue;
     }
 
-    const batchResults = await Promise.allSettled(batchPromises);
-
-    for (const result of batchResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        products.push(result.value);
-      }
+    if (i % 50 === 0 && job) {
+      job.attrs.data.progress = 30 + (i / productElements.length) * 70;
+      job.attrs.data.total_products = products.length;
+      await job.save();
     }
-
-    console.log(
-      `Processed ${Math.min(i + batchSize, productElements.length)}/${
-        productElements.length
-      } products`
-    );
   }
 
+  console.log(`Extraction complete. Extracted ${products.length} products.`);
   return products;
 }
 
@@ -434,98 +408,14 @@ async function extractSingleProduct(page, productLocator, pincode) {
   }
 }
 
-async function saveProductsToFile(products, fileName) {
-  try {
-    const outputDir = path.join(process.cwd(), 'output');
-    await fs.mkdir(outputDir, { recursive: true });
-
-    const filePath = path.join(outputDir, `${fileName}.json`);
-    await fs.writeFile(filePath, JSON.stringify(products, null, 2));
-
-    console.log(`Saved ${products.length} products to ${filePath}`);
-  } catch (error) {
-    console.error(`Error saving products to file: ${error.message}`);
-  }
-}
-
 export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
-  // if (products.length > 0 && fileName) {
-  //   // Save final results
-  //   await saveProductsToFile(products, fileName);
-  //   console.log(
-  //     `Job completed successfully. Scraped ${products.length} products.`
-  //   );
-  //   return products;
-  // } else {
-  //   console.log('Job completed but no products were found.');
-  //   return [];
-  // }
 }
 function extractQuantity(title) {
   const quantityPattern =
     /(\d+\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch)\b)/i;
   const match = title.match(quantityPattern);
-  return match ? match[0] : null;
+  return match ? match : null;
 }
-async function extractVariantData(variantElement) {
-  const tx = await variantElement.innerText();
-  if (tx.toLowerCase().includes('out of stock')) {
-    return null;
-  }
-  let priceElement = variantElement.locator(
-    '.jm-list-content > div  >  span.jm-body-xs'
-  );
-  let price = '';
-  if ((await priceElement.count()) > 0) {
-    // replace any non digit character with empty string except
-    priceElement = await priceElement.innerText();
-    if (priceElement) {
-      price = priceElement.replace(/[^\d.]/g, '');
-    }
-  }
-  let mrpElement = variantElement.locator(
-    '.jm-list-content > div  >  span.jm-body-xxs'
-  );
-  let mrp = '';
-  if ((await mrpElement.count()) > 0) {
-    mrpElement = await mrpElement.innerText();
-    if (mrpElement) {
-      mrp = mrpElement.replace(/[^\d.]/g, '');
-    }
-  } else {
-    mrp = price;
-  }
-  let quantityElement = variantElement.locator('.jm-list-content p');
-  let quantity = '';
-  if ((await quantityElement.count()) > 0) {
-    quantityElement = await quantityElement.innerText();
-    if (quantityElement) {
-      quantity = quantityElement;
-    }
-  }
 
-  let variantUrlElement = variantElement.locator('a');
-  let variantUrl = '';
-  if ((await variantUrlElement.count()) > 0) {
-    variantUrl = await variantUrlElement.getAttribute('href');
-    if (variantUrl) {
-      variantUrl = `https://www.jiomart.com${variantUrl}`;
-    }
-  }
-  // href="/p/groceries/pringles-sour-cream-and-onion-potato-chips-134-g/593619068"
-  // put the article code as the last code of the link
-  const articleId = variantUrl.split('/').pop();
-  return {
-    articleId: articleId ? Number(articleId) : null,
-    quantity: quantity,
-    price: Number(price),
-    mrp: Number(mrp),
-    variantUrl
-  };
-}
-// if (require.main === module) {
-// main('https://www.jiomart.com/c/groceries/2', '500075');
-//     .then(() => console.log('Scraping completed'))
-//     .catch(err => console.error('Scraping failed:', err));
-// }
+// main(null, null, 'https://www.jiomart.com/c/groceries/2', '500075');
