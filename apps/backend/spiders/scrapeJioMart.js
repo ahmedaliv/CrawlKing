@@ -108,6 +108,7 @@ async function runJob(job, jobId, url, pincode) {
   } catch (error) {
     console.error(`Job  with ID : ${jobId}failed with error: ${error.message}`);
     // Return any products collected so far
+    await page.screenshot({ path: 'screenshot.png' });
     return [[], null];
   } finally {
     await browser.close();
