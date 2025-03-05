@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
-import fs from 'fs/promises';
-import path from 'path';
+import UserAgent from 'user-agents';
+
 
 // Configuration constants
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
@@ -18,10 +18,11 @@ async function runJob(job, jobId, url, pincode) {
   let fileName = '';
 
   try {
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+    const randomUserAgent = userAgent.toString();
     // Create browser context with optimized settings
     const context = await browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      userAgent: randomUserAgent,
       viewport: { width: 1280, height: 720 },
       bypassCSP: true
     });
