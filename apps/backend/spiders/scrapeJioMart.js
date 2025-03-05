@@ -64,7 +64,7 @@ async function runJob(job, jobId, url, pincode) {
     // Extract category name for filename
     const categoryElement = await page
       .waitForSelector('ul.jm-breadcrumbs-list > li:last-child', {
-        timeout: 10000
+        timeout: DEFAULT_TIMEOUT
       })
       .catch(() => null);
 
@@ -119,18 +119,18 @@ async function runJob(job, jobId, url, pincode) {
 
 async function handlePincodeEntry(page, pincode) {
   try {
-    await page.waitForSelector('#btn_pin_code_delivery', { timeout: 10000 });
+    await page.waitForSelector('#btn_pin_code_delivery');
     await page.click('#btn_pin_code_delivery');
 
-    await page.waitForSelector('#btn_enter_pincode', { timeout: 10000 });
+    await page.waitForSelector('#btn_enter_pincode');
     await page.click('#btn_enter_pincode');
 
-    await page.waitForSelector('#rel_pincode', { timeout: 10000 });
+    await page.waitForSelector('#rel_pincode');
     await page.fill('#rel_pincode', pincode);
 
     await page.click('#btn_pincode_submit');
 
-    await page.waitForSelector('.ais-InfiniteHits-list', { timeout: 15000 });
+    await page.waitForSelector('.ais-InfiniteHits-list');
   } catch (error) {
     throw new Error(`Pincode error: ${error.message}`);
   }
