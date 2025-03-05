@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 // Configuration constants
-const DEFAULT_TIMEOUT = 10000; // 60 seconds
+const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
 const MAX_RETRIES = 3;
 const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrently
