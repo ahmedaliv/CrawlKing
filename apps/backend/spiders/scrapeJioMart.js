@@ -418,7 +418,7 @@ function extractQuantity(title) {
   const quantityPattern =
     /(\d+\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch)\b)/i;
   const match = title.match(quantityPattern);
-  return match ? match : null;
+  return match ? match[0] : ''; // Return only the first match or an empty string
 }
 
 // main(null, null, 'https://www.jiomart.com/c/groceries/2', '500075');
