@@ -250,7 +250,7 @@ async function extractVariantData(variantElement) {
     mrp: Number(mrp),
     variantUrl
   };
-};
+}
 async function extractProductsData(page, pincode, job = null) {
   const products = [];
   console.log('Extracting products data...');
@@ -280,6 +280,7 @@ async function extractProductsData(page, pincode, job = null) {
     if (i % 50 === 0 && job) {
       job.attrs.data.progress = 30 + (i / productElements.length) * 70;
       job.attrs.data.total_products = products.length;
+      await job.touch();
       await job.save();
     }
   }
