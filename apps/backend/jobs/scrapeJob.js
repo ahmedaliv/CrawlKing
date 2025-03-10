@@ -4,6 +4,7 @@ import { main as scrapeBigBasket } from '../spiders/scrapeBigBasket.js';
 import { main as scrapeBlinkit } from '../spiders/scrapeBlinkit.js';
 import { main as scrapeZeptoNow } from '../spiders/scrapeZeptoNow.js';
 import { main as scrapeSwiggy } from '../spiders/scrapeSwiggy.js';
+import {main as scrapeFlipKart} from '../spiders/scrapeFlipKart.js';
 import ScrapeData from '../models/ScrapeData.js'; // Import ScrapeData model
 
 const MAX_RETRIES = 3;
@@ -22,6 +23,8 @@ const getScraper = (url) => {
       return scrapeZeptoNow;
     case url.includes('swiggy'):
       return scrapeSwiggy;
+    case url.includes('flipkart'):
+      return scrapeFlipKart;
     default:
       throw new Error(`No scraper found for URL: ${url}`);
   }
