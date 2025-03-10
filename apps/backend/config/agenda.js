@@ -5,8 +5,8 @@ configDotenv();
 const agenda = new Agenda({
   db: { address: process.env.DB_URL, collection: 'agendaJobs' },
   processEvery: '30 seconds',
-  maxConcurrency: 5,
-  defaultLockLifetime: 30 * 60 * 1000 // 30 minutes
+  maxConcurrency: 2,
+  defaultLockLifetime: 60 * 60 * 1000 // 60 minutes
 });
 
 agenda.on('ready', () => {
