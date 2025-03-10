@@ -3,7 +3,7 @@ import agenda from '../config/agenda.js';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: true // Set to true for headless mode
+    headless:  true// Set to true for headless mode
   });
   const startTime = performance.now(); // Record the start time
 
@@ -96,7 +96,7 @@ async function runJob(job, jobId, url, pincode) {
     const lastSegmentOfUrl = url.split('/').pop();
 
     // **LOGGING INITIAL REQUEST**
-    const initialRequestUrl = `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=1`;
+    const initialRequestUrl = `https://digital.dmart.in/api/v3/plp/${lastSegmentOfUrl}?page=0&size=1`;
 
     const initialResponse = await page.request.get(initialRequestUrl, {
       headers: {
@@ -113,11 +113,12 @@ async function runJob(job, jobId, url, pincode) {
     // Step 3 : Check if the number of products is > 500 , if yes fetch milestones (500 products at a time)
     let finalResponse;
     if (totalProducts > 500) {
+      console.log('if')
       const milestones = Math.ceil(totalProducts / 500);
       let products = [];
       for (let i = 1; i <= milestones; i++) {
         finalResponse = await page.request.get(
-          `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=${i}&size=500&channel=web&storeId=${storeId}`,
+          `https://digital.dmart.in/api/v3/plp/${lastSegmentOfUrl}?page=${i}&size=500&channel=web&storeId=${storeId}`,
           {
             headers: {
               ...headers,
@@ -137,8 +138,9 @@ async function runJob(job, jobId, url, pincode) {
       }
       finalResponse = { products };
     } else {
+      console.log('else')
       finalResponse = await page.request.get(
-        `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=${totalProducts}&channel=web&storeId=${storeId}`,
+        `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=${500}&channel=web&storeId=${storeId}`,
         {
           headers: {
             ...headers,
@@ -214,7 +216,7 @@ async function runJob(job, jobId, url, pincode) {
     console.log(`Job ${jobId} failed with error: ${error.message}`);
     return [[], null];
   } finally {
-    await browser.close();
+    // await browser.close();
     const endTime = performance.now();
   }
 }
