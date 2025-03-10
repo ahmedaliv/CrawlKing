@@ -229,9 +229,6 @@ async function runJob(job, jobId, url, pincode) {
         console.log(`broke from equality`);
         break;
       }
-      if (i === 1) {
-        break;
-      }
     }
     console.log(`allProducts: ${allProducts.length}`);
     job.attrs.data.progress = 100;
