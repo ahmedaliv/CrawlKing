@@ -1,18 +1,31 @@
-import playwright from 'playwright';
+import { chromium } from 'playwright-extra';
+
+import stealth from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(stealth());
+
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
-  const browser = await playwright.chromium.launch({
-    headless: true
+  const browser = await chromium.launch({
+    headless: true,
+    extraHTTPHeaders: {
+      'accept-language': 'en-US,en;q=0.9',
+      'sec-ch-ua': '"Chromium";v="110", "Not:A-Brand";v="99"',
+      'sec-fetch-mode': 'navigate'
+    }
   });
 
-  try {
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+  // Apply stealth plugin
 
-    const randomUserAgent = userAgent.toString();
-    const context = await browser.newContext({
-      userAgent: randomUserAgent
-    });
-    const page = await context.newPage();
+  const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
+  const context = await browser.newContext({
+    userAgent,
+    viewport: { width: 1280, height: 720 },
+    bypassCSP: true
+  });
+
+  const page = await context.newPage();
+  try {
     // page.setDefaultTimeout(60000 * 3);
     await page.goto(url);
     await page.waitForSelector("section ul li[class*='PaginateItems']");
@@ -216,6 +229,8 @@ async function runJob(job, jobId, url, pincode) {
     }
     // await page.waitForSelector("section ul li[class*='PaginateItems']");
   } catch (error) {
+    // take a screen shot
+    await page.screenshot({ path: 'screenshot.png' });
     console.log(`Job ${jobId} failed with error: ${error.message}`);
     return [[], null];
   } finally {

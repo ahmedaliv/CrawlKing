@@ -25,6 +25,9 @@
     "mongoose": "^8.5.2",
     "node-cron": "^3.0.3",
     "playwright": "^1.46.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "stealth": "^0.4.0",
     "user-agents": "^1.1.451",
     "uuid": "^11.0.2",
     "uuidv4": "^6.2.13"
