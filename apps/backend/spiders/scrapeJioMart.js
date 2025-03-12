@@ -13,19 +13,20 @@ async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
     headless: true // Run headless for better performance
   });
+  const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+  const randomUserAgent = userAgent.toString();
+  const context = await browser.newContext({
+    userAgent: randomUserAgent,
+    viewport: { width: 1280, height: 720 },
+    bypassCSP: true
+  });
+  const page = await context.newPage();
+  
   const startTime = performance.now();
   let products = [];
   let fileName = '';
-
   try {
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-    const randomUserAgent = userAgent.toString();
     // Create browser context with optimized settings
-    const context = await browser.newContext({
-      userAgent: randomUserAgent,
-      viewport: { width: 1280, height: 720 },
-      bypassCSP: true
-    });
 
     // Block unnecessary resources to improve performance
     await context.route(
@@ -36,7 +37,6 @@ async function runJob(job, jobId, url, pincode) {
       route.abort()
     );
 
-    const page = await context.newPage();
     page.setDefaultTimeout(DEFAULT_TIMEOUT);
 
     // Navigate to the target URL with retry logic
