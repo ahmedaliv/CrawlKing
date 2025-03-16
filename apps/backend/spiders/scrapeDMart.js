@@ -192,7 +192,7 @@ async function runJob(job, jobId, url, pincode) {
         });
       } else {
         productMap[title] = {
-          brand: product.manfacturer,
+          brand: product.manufacturer || "",
           title,
           variant: variants,
           imageUrl: imageUrl,
