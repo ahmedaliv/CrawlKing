@@ -296,7 +296,7 @@ async function runJob(job, jobId, url, pincode) {
                 quantity: quantity,
                 mrp: product.productVariant.mrp,
                 price: product.discountedSellingPrice,
-                varaintUrl: `https://www.zeptonow.com${generateProductUrl({
+                variantUrl: `https://www.zeptonow.com${generateProductUrl({
                   productName: product.product.name,
                   productVariantId: product.productVariant.id
                 })}`
