@@ -335,10 +335,13 @@ async function extractSingleProduct(page, productLocator, pincode) {
     }
 
     // Extract image URL
-    const imageLocator = productLocator.locator('.plp-card-image img');
+    const imageLocator = productLocator.locator('> a > div');
     let imageUrl = '';
     if ((await imageLocator.count()) > 0) {
-      imageUrl = (await imageLocator.getAttribute('src')) || '';
+      const lastPart = await imageLocator.getAttribute('data-image')
+      if (lastPart){
+        imageUrl =`https://www.jiomart.com/images/product/original/${lastPart}`;
+      }
     }
 
     // Extract product URL
@@ -420,5 +423,25 @@ function extractQuantity(title) {
   const match = title.match(quantityPattern);
   return match ? match[0] : ''; // Return only the first match or an empty string
 }
+function extractQuantity(title) {
+  const quantityPattern = /\b(\d*\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch))\b/i;
+  const match = title.match(quantityPattern);
+  return match ? match[0] : "";
+}
 
+function cleanText(title, brand, source) {
+  let cleanedTitle = title.toLowerCase();
+  const quantity = extractQuantity(title);
+
+  if (quantity) {
+    cleanedTitle = cleanedTitle.replace(new RegExp(`\\b${quantity.toLowerCase()}\\b`, "gi"), "").trim();
+  }
+  if (brand) {
+    cleanedTitle = cleanedTitle.replace(new RegExp(`\\b${brand.toLowerCase()}\\b`, "gi"), "").trim();
+  }
+  if (source) {
+    cleanedTitle = cleanedTitle.replace(new RegExp(`\\b${source.toLowerCase()}\\b`, "gi"), "").trim();
+  }
+  return cleanedTitle.replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
 // main(null, null, 'https://www.jiomart.com/c/groceries/2', '500075');
