@@ -233,11 +233,11 @@ async function runJob(job, jobId, url, pincode) {
           return typeof str !== 'string'
             ? ''
             : str
-                .toLowerCase()
-                .trim()
-                .replace(/[^\w\s-]/g, '')
-                .replace(/[\s_-]+/g, separator)
-                .replace(/^-+|-+$/g, '');
+              .toLowerCase()
+              .trim()
+              .replace(/[^\w\s-]/g, '')
+              .replace(/[\s_-]+/g, separator)
+              .replace(/^-+|-+$/g, '');
         };
 
         const generateProductUrl = ({ productName, productVariantId }) => {
@@ -275,7 +275,7 @@ async function runJob(job, jobId, url, pincode) {
                 quantity = `${weight / 1000} L`;
               } else if (unit === 'MILLILITRE') {
                 quantity = `${weight} ml`;
-              } else { 
+              } else {
                 quantity = `${weight} ${unit}`;
               }
             }
@@ -294,8 +294,8 @@ async function runJob(job, jobId, url, pincode) {
               productMap[productId].variant.push({
                 articleId: variantId,
                 quantity: quantity,
-                mrp: product.productVariant.mrp,
-                price: product.discountedSellingPrice,
+                mrp: product.productVariant.mrp / 100,
+                price: product.discountedSellingPrice / 100,
                 variantUrl: `https://www.zeptonow.com${generateProductUrl({
                   productName: product.product.name,
                   productVariantId: product.productVariant.id

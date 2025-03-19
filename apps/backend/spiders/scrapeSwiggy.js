@@ -1,21 +1,62 @@
-import playwright from 'playwright';
+import { chromium } from 'playwright-extra';
+
+import stealth from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(stealth());
+
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
-  const browser = await playwright.chromium.launch({
-    headless: true
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--disable-dev-shm-usage',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-extensions',
+      '--disable-infobars',
+      '--mute-audio',
+      '--disable-background-networking',
+    ]
+  });
+
+  // Apply stealth plugin
+
+  const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
+  const context = await browser.newContext({
+    userAgent,
+    viewport: { width: 1280, height: 720 },
+    bypassCSP: true
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
+    // Spoof WebRTC
+    Object.defineProperty(navigator, 'connection', {
+      get: () => ({ effectiveType: '4g' })
+    });
+  });
+  const page = await context.newPage();
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  });
+  await context.addInitScript(() => {
+    Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
+      constructor(locale, options) {
+        super('en-US', options);
+      }
+    };
+    Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
+      value: () => ({ timeZone: 'America/New_York' })
+    });
   });
 
   try {
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-
-    const randomUserAgent = userAgent.toString();
-    const context = await browser.newContext({
-      userAgent: randomUserAgent
-    });
-    const page = await context.newPage();
     // page.setDefaultTimeout(60000 * 3);
     // await page.goto(url);
-    await page.goto('https://www.swiggy.com');
+    await page.goto('https://www.swiggy.com/');
     // set the pincode in the base website then we go to the one to be scrapped
     await page.waitForSelector('input[id="location"]');
     await page.fill('input[id="location"]', pincode);
@@ -29,6 +70,9 @@ async function runJob(job, jobId, url, pincode) {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);
     await page.goto(url);
+    let requestUrl = '';
+    let headers = {};
+    let requestBody = null;
     const result = await Promise.race([
       page
         .waitForSelector('div[data-testid="default_container_ux4"]')
@@ -37,13 +81,8 @@ async function runJob(job, jobId, url, pincode) {
         .waitForSelector('div[data-testid="ItemWidgetContainer"]')
         .then((el) => ({ element: el, type: 'ItemWidgetContainer' }))
     ]);
-
-    // intercept the request
-
-    let requestUrl = '';
-    let headers = {};
-    let requestBody = null;
     if (result.type === 'default_container_ux4') {
+      console.log('type 1');
       await page.route(
         /\/api\/instamart\/collection\?.*/, // Match the new URL pattern
         async (route) => {
@@ -63,6 +102,7 @@ async function runJob(job, jobId, url, pincode) {
         }
       );
     } else {
+      console.log('type 2');
       await page.route(
         /\/api\/instamart\/category-listing\/filter\?.*/, // Match the new URL pattern
         async (route) => {
@@ -72,9 +112,9 @@ async function runJob(job, jobId, url, pincode) {
             headers = request.headers();
 
             console.log('Request URL:', requestUrl);
-            console.log('Headers:', headers);
+            console.log('Headers:');
             requestBody = request.postData();
-            console.log('Request Body:', requestBody);
+            console.log('Request Body');
             // Continue the request
             route.continue();
           } else {
@@ -84,35 +124,17 @@ async function runJob(job, jobId, url, pincode) {
         }
       );
     }
-    await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
-    try {
-      const element = await Promise.race([
-        page.waitForSelector('div[data-testid="default_container_ux4"]', {
-          timeout: 10000
-        }),
-        page.waitForSelector('div[data-testid="ItemWidgetContainer"]', {
-          timeout: 10000
-        })
-      ]);
-      console.log(
-        'Found element:',
-        await element.evaluate((el) => el.outerHTML)
-      );
-    } catch (error) {
-      console.error('Neither element appeared in time:', error);
-    }
     let categoryName = '';
     if (result.type === 'default_container_ux4') {
       categoryName = await page
         .locator(
-          'div.content  > div[data-testid="children-wrapper"]:first-of-type > div:first-of-type  > div:last-of-type'
+          'div h1'
         )
         .textContent();
     } else {
       categoryName = await page
-        .locator('div[data-testid="title-element"]')
+        .locator('div h1')
         .textContent();
-      categoryName = categoryName.split('in')[1];
       console.log(`Category Name: ${categoryName}`);
     }
     // Format the category name
@@ -127,193 +149,235 @@ async function runJob(job, jobId, url, pincode) {
 
     console.log(categoryName);
 
-    const filename = `Swiggy-${pincode}-${categoryName}-products`;
-    console.log(filename);
+    const fileName = `Swiggy-${pincode}-${categoryName}-products`;
+    console.log(fileName);
     job.attrs.data.progress = 5;
     await job.save();
-    if (requestUrl === '') {
-      console.log('Failed to intercept the request, Scrolling Now');
-      await page.evaluate(async () => {
-        let lastElement = document.querySelector(
-          'div[data-testid="default_container_ux4"]:last-of-type'
+    const productMap = {};
+    // intercept the request
+    const subCats = await page.locator('ul li').all();
+    const allProducts = [];
+    console.log(`Sub Categories: ${subCats.length}`);
+    for (let i = 0; i < subCats.length; i++) {
+      requestUrl = '';
+      headers = {};
+      requestBody = null;
+      await subCats[i].click();
+      await page.waitForTimeout(3000);
+      await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
+      try {
+        const element = await Promise.race([
+          page.waitForSelector('div[data-testid="default_container_ux4"]', {
+            timeout: 10000
+          }),
+          page.waitForSelector('div[data-testid="ItemWidgetContainer"]', {
+            timeout: 10000
+          })
+        ]);
+        console.log(
+          'Found element:'
+          // await element.evaluate((el) => el.outerHTML)
         );
-        // if not found, try the other selector
-        if (!lastElement) {
-          console.log('Trying the other selector');
-          lastElement = document.querySelector(
-            'div[data-testid="ItemWidgetContainer"]:last-of-type'
+      } catch (error) {
+        console.error('Neither element appeared in time:', error);
+      }
+      if (requestUrl === '') {
+        console.log('Failed to intercept the request, Scrolling Now');
+        await page.evaluate(async () => {
+          let lastElement = document.querySelector(
+            'div[data-testid="default_container_ux4"]:last-of-type'
           );
-        }
-        lastElement.scrollIntoView();
-        // wait for 2 seconds
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      });
-    }
-    async function findTotalPages(url) {
-      console.log(`Finding total pages for URL: ${url}`);
-      let start = 0; // First page
-      let end = 1000; // Assume an initial maximum page count
-
-      let ans = -1;
-
-      while (start <= end) {
-        const mid = Math.floor((start + end) / 2);
-        let newUrl = url.replace(/pageNo=\d+/, `pageNo=${mid}`);
-
-        try {
-          let res;
-          if (result.type === 'default_container_ux4') {
-            res = await page.request.get(newUrl, {
-              headers: headers
-            });
-          } else {
-            // For POST requests
-            newUrl = newUrl.replace(/offset=\d+/, `offset=${mid * 20}`);
-            res = await page.request.post(newUrl, {
-              headers: headers,
-              data: requestBody
-            });
-          }
-
-          if (res.status() === 200) {
-            const data = await res.json(); // Parse the JSON response
-
-            // Check if the page has products
-            if (data['data'] && data['data']['hasMore'] === false) {
-              ans = mid; // Update totalPages to the current mid
-              end = mid - 1; // Search in the upper half
-            } else {
-              start = mid + 1; // Search in the lower half
-            }
-          } else {
-            throw new Error(
-              `Failed to fetch page ${mid}, status: ${res.status()}`
+          // if not found, try the other selector
+          if (!lastElement) {
+            console.log('Trying the other selector');
+            lastElement = document.querySelector(
+              'div[data-testid="ItemWidgetContainer"]:last-of-type'
             );
           }
-        } catch (error) {
-          console.error(`Error fetching page ${mid}:`, error.message);
-          end = mid - 1; // Adjust the search range and continue
-        }
-      }
+          if (lastElement) {
+            lastElement.scrollIntoView();
+            // wait for 2 seconds
+            await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      console.log(`Total pages: ${ans}`);
-      return ans === -1 ? 0 : ans;
-    }
-
-    const totalPages = await findTotalPages(requestUrl);
-    console.log(`Total pages: ${totalPages}`);
-    if (requestUrl) {
-      job.attrs.data.progress = 15;
-      await job.save();
-      const products = [];
-      let totalScrapped = 0;
-      for (let i = 0; i <= totalPages; i++) {
-        if (result.type !== 'default_container_ux4') {
-          requestUrl = requestUrl.replace(/offset=\d+/, `offset=${i * 20}`);
-        }
-        let currentUrl = requestUrl.replace(/pageNo=\d+/, `pageNo=${i}`);
-        // .replace(/limit=\d+/, `limit=100`);
-        console.log(`Requesting page ${i} with URL: ${currentUrl}`);
-        const response = await fetchWithRetry(
-          page,
-          currentUrl,
-          headers,
-          requestBody
-        );
-
-        if (response.status() !== 200) {
-          console.error(`Request failed with status ${response.status()}`);
-          continue;
-        }
-        let data;
-        try {
-          data = await response.json();
-        } catch (error) {
-          console.error('Failed to parse JSON:', error);
-          continue;
-        }
-        try {
-          let milestoneData;
-          if (result.type === 'default_container_ux4') {
-            milestoneData = data['data']['items'];
-          } else {
-            milestoneData =
-              data['data']['widgets'][data['data']['widgets'].length - 1][
-                'data'
-              ];
-          }
-          console.log(
-            `Current Data len: ${milestoneData.length} for page ${i}`
-          );
-          products.push(...milestoneData);
-          totalScrapped = products.length;
-          console.log(`Total So Far:${totalScrapped}`);
-          const hasMore = data['data']['hasMore'];
-          if (!hasMore) {
-            console.log('Finished scraping all products');
-            break;
-          }
-          job.attrs.data.progress = 15 + Math.ceil(((i + 1) * 85) / totalPages);
-          job.attrs.data.total_products = totalScrapped;
-          await job.save();
-        } catch (error) {
-          console.log(`broke from the loop with ${error.message}`);
-          break;
-        }
-      }
-      const transformedProducts = [];
-      console.log(`Total Products: ${products.length}`);
-      console.log(`file Name : ${filename}`);
-
-      const productMap = {};
-
-      for (let i = 0; i < products.length; i++) {
-        const product = products[i];
-        const key = `${product['brand_id']}-${product['display_name']}`;
-
-        if (!productMap[key]) {
-          productMap[key] = {
-            brand: product['brand'],
-            title: product['display_name'],
-            variant: [],
-            articleIds: new Set(), // Track added article IDs
-            url: `https://www.swiggy.com/instamart/item/${
-              product['product_id']
-            }?storeId=${product['variations']?.[0]?.store_id || ''}`,
-            pincode: Number(pincode)
-          };
-        }
-
-        (product['variations'] || []).forEach((variant) => {
-          if (!productMap[key].articleIds.has(variant['id'])) {
-            productMap[key]['variant'].push({
-              quantity: variant['sku_quantity_with_combo'],
-              mrp: variant['price']['mrp'],
-              price: variant['price']['offer_price'],
-              articleId: variant['id']
-            });
-            productMap[key].articleIds.add(variant['id']);
+            // Scroll 100px more
+            window.scrollBy(0, 100);
           }
         });
       }
 
-      // Remove the 'articleIds' set before final output
-      const allProducts = Object.values(productMap).map(
-        ({ articleIds, ...rest }) => rest
-      );
+      async function findTotalPages(url) {
+        if (!url || !url.includes('pageNo=')) {
+          console.log(`Invalid URL: ${url}`);
+          throw new Error('Invalid API endpoint URL');
+        }
+        console.log(`Finding total pages for URL: ${url}`);
+        let start = 0; // First page
+        let end = 1000; // Assume an initial maximum page count
 
-      console.log(`Total Products: ${allProducts.length}`);
+        let ans = -1;
 
-      console.log(`Total Products: ${allProducts.length}`);
-      // print all the products
+        while (start <= end) {
+          const mid = Math.floor((start + end) / 2);
+          let newUrl = url.replace(/pageNo=\d+/, `pageNo=${mid}`);
 
-      job.attrs.data.total_products = allProducts.length;
-      job.attrs.data.progress = 100;
-      await job.save();
-      return [allProducts, filename];
-    } else {
-      console.log('failed to send the request, check the url');
+          try {
+            let res;
+            if (result.type === 'default_container_ux4') {
+              res = await page.request.get(newUrl, {
+                headers: headers
+              });
+            } else {
+              // For POST requests
+              newUrl = newUrl.replace(/offset=\d+/, `offset=${mid * 20}`);
+              res = await page.request.post(newUrl, {
+                headers: headers,
+                data: requestBody
+              });
+            }
+
+            const randomDelay = () => Math.floor(Math.random() * (5000 - 2000) + 2000); // 2-5 sec
+
+            await page.waitForTimeout(randomDelay());
+            if (res.status() === 200) {
+              const data = await res.json(); // Parse the JSON response
+
+              // Check if the page has products
+              if (data['data'] && data['data']['hasMore'] === false) {
+                ans = mid; // Update totalPages to the current mid
+                end = mid - 1; // Search in the upper half
+              } else {
+                start = mid + 1; // Search in the lower half
+              }
+            } else {
+              throw new Error(
+                `Failed to fetch page ${mid}, status: ${res.status()}`
+              );
+            }
+          } catch (error) {
+            console.error(`Error fetching page ${mid}:`, error.message);
+            end = mid - 1; // Adjust the search range and continue
+          }
+        }
+
+        console.log(`Total pages: ${ans}`);
+        return ans === -1 ? 0 : ans;
+      }
+
+      const totalPages = await findTotalPages(requestUrl);
+      console.log(`Total pages: ${totalPages}`);
+      if (requestUrl) {
+        job.attrs.data.progress = 15;
+        await job.save();
+        const products = [];
+        let totalScrapped = 0;
+        for (let i = 0; i <= totalPages; i++) {
+          if (result.type !== 'default_container_ux4') {
+            requestUrl = requestUrl.replace(/offset=\d+/, `offset=${i * 20}`);
+          }
+          let currentUrl = requestUrl.replace(/pageNo=\d+/, `pageNo=${i}`);
+          // .replace(/limit=\d+/, `limit=100`);
+          console.log(`Requesting page ${i} with URL: ${currentUrl}`);
+          const response = await fetchWithRetry(
+            page,
+            currentUrl,
+            headers,
+            requestBody
+          );
+
+          if (response.status() !== 200) {
+            console.error(`Request failed with status ${response.status()}`);
+            continue;
+          }
+          let data;
+          try {
+            data = await response.json();
+          } catch (error) {
+            console.error('Failed to parse JSON:', error);
+            continue;
+          }
+          try {
+            let milestoneData;
+            if (result.type === 'default_container_ux4') {
+              milestoneData = data['data']['items'];
+            } else {
+              milestoneData =
+                data['data']['widgets'][data['data']['widgets'].length - 1][
+                'data'
+                ];
+            }
+            console.log(
+              `Current Data len: ${milestoneData.length} for page ${i}`
+            );
+            products.push(...milestoneData);
+            totalScrapped = products.length;
+            console.log(`Total So Far:${totalScrapped}`);
+            const hasMore = data['data']['hasMore'];
+            if (!hasMore) {
+              console.log('Finished scraping all products');
+              break;
+            }
+          } catch (error) {
+            console.log(`broke from the loop with ${error.message}`);
+            break;
+          }
+        }
+        console.log(`Total Products: ${products.length}`);
+
+
+        for (let i = 0; i < products.length; i++) {
+          const product = products[i];
+          const key = `${product['brand_id']}-${product['display_name']}`;
+
+          if (!productMap[key]) {
+            productMap[key] = {
+              brand: product['brand'],
+              title: product['display_name'],
+              variant: [],
+              articleIds: new Set(), // Track added article IDs
+              url: `https://www.swiggy.com/instamart/item/${product['product_id']
+                }?storeId=${product['variations']?.[0]?.store_id || ''}`,
+              pincode: Number(pincode)
+            };
+          }
+
+          (product['variations'] || []).forEach((variant) => {
+            if (!productMap[key].articleIds.has(variant['id'])) {
+              productMap[key]['variant'].push({
+                quantity: variant['sku_quantity_with_combo'],
+                mrp: variant['price']['mrp'],
+                price: variant['price']['offer_price'],
+                articleId: variant['id'],
+                variantUrl: `https://www.swiggy.com/instamart/item/${product['product_id']
+                  }?storeId=${product['variations']?.[0]?.store_id || ''}`,
+              });
+              productMap[key].articleIds.add(variant['id']);
+            }
+          });
+        }
+
+        // Remove the 'articleIds' set before final output
+        const curProducts = Object.values(productMap).map(
+          ({ articleIds, ...rest }) => rest
+        );
+
+        console.log(`currentSubCat Products: ${curProducts.length}`);
+        console.log(`Total Products: ${allProducts.length}`);
+
+        job.attrs.data.progress =
+          15 + Math.ceil(((i + 1) * 85) / subCats);
+        job.attrs.data.total_products = allProducts.length;
+        await job.save();
+        allProducts.push(...curProducts);
+      } else {
+        console.log(
+          `failed to send the request, check the url for subCat ${i}`
+        );
+      }
+      await page.waitForTimeout(15000)
     }
+    job.attrs.data.total_products = allProducts.length;
+    job.attrs.data.progress = 100;
+    return [allProducts, fileName];
   } catch (error) {
     console.log(`Job ${jobId} failed with error: ${error.message}`);
     return [[], null];
@@ -327,6 +391,7 @@ export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const randomDelay = () => Math.floor(Math.random() * (5000 - 2000) + 2000); // 2-5 sec
 
 const fetchWithRetry = async (
   page,
@@ -348,6 +413,8 @@ const fetchWithRetry = async (
           'User-Agent': randomUserAgent // Use the random user agent
         }
       });
+      // wait for 2 seconds
+      await page.waitForTimeout(randomDelay());
     } else {
       console.log(`making post request`);
       response = await page.request.post(url, {
@@ -357,6 +424,8 @@ const fetchWithRetry = async (
         },
         data: requestBody
       });
+      // wait for 2 seconds
+      await page.waitForTimeout(randomDelay());
     }
     if (response.status() !== 200) {
       console.error(`Request failed with status ${response.status()}`);

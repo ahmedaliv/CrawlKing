@@ -3,7 +3,7 @@ import agenda from '../config/agenda.js';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless:  true// Set to true for headless mode
+    headless:  true/// Set to true for headless mode
   });
   const startTime = performance.now(); // Record the start time
 
@@ -216,7 +216,7 @@ async function runJob(job, jobId, url, pincode) {
     console.log(`Job ${jobId} failed with error: ${error.message}`);
     return [[], null];
   } finally {
-    // await browser.close();
+    await browser.close();
     const endTime = performance.now();
   }
 }

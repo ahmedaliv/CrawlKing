@@ -7,13 +7,9 @@ chromium.use(stealth());
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
-    headless: true,
-    extraHTTPHeaders: {
-      'accept-language': 'en-US,en;q=0.9',
-      'sec-ch-ua': '"Chromium";v="110", "Not:A-Brand";v="99"',
-      'sec-fetch-mode': 'navigate'
-    }
-  });
+    headless: false, 
+    args: ['--disable-blink-features=AutomationControlled'] // Helps bypass detection
+});
 
   // Apply stealth plugin
 
@@ -25,6 +21,11 @@ async function runJob(job, jobId, url, pincode) {
   });
 
   const page = await context.newPage();
+await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false }); // Hide WebDriver
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); // Real languages
+    Object.defineProperty(navigator, 'platform', { get: () => 'Linux' }); // Set real OS
+});
   try {
     // page.setDefaultTimeout(60000 * 3);
     await page.goto(url);
