@@ -7,9 +7,18 @@ chromium.use(stealth());
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
-    headless: false, 
-    args: ['--disable-blink-features=AutomationControlled'] // Helps bypass detection
-});
+    headless: false,
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--disable-dev-shm-usage',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-extensions',
+      '--disable-infobars',
+      '--mute-audio',
+      '--disable-background-networking',
+    ]
+  });
 
   // Apply stealth plugin
 
@@ -19,15 +28,33 @@ async function runJob(job, jobId, url, pincode) {
     viewport: { width: 1280, height: 720 },
     bypassCSP: true
   });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
 
+    // Spoof WebRTC
+    Object.defineProperty(navigator, 'connection', {
+      get: () => ({ effectiveType: '4g' })
+    });
+  });
   const page = await context.newPage();
-await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => false }); // Hide WebDriver
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); // Real languages
-    Object.defineProperty(navigator, 'platform', { get: () => 'Linux' }); // Set real OS
-});
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  });
+  await context.addInitScript(() => {
+    Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
+      constructor(locale, options) {
+        super('en-US', options);
+      }
+    };
+    Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
+      value: () => ({ timeZone: 'America/New_York' })
+    });
+  });
   try {
-    // page.setDefaultTimeout(60000 * 3);
+    page.setDefaultTimeout(60000 * 3);
+    url = url.replace(/page=\d+/, 'page=1');
     await page.goto(url);
     await page.waitForSelector("section ul li[class*='PaginateItems']");
     // Handle location input (Pincode)
@@ -125,6 +152,10 @@ await page.addInitScript(() => {
           }
         }
       });
+      if (requestUrl === ''){
+        const slug = page.url().split('?')[0].split('/').filter(e=> e!='').pop()
+        requestUrl = `https://www.bigbasket.com/listing-svc/v2/products?type=pc&slug=${slug}&page=1`
+      }
     }
     // **Step 1: Get cookies after confirming pincode**
     const cookies = await context.cookies();
@@ -218,6 +249,7 @@ await page.addInitScript(() => {
               };
             })
           ],
+          imageUrl: product?.images?.[0]?.l || product?.images?.[0]?.m || product?.images?.[0]?.s,
           url: `https://www.bigbasket.com${product.absolute_url}`, // "https://www.bigbasket.com/pd/40141960/mr-gold-nakshatra-pooja-oil-500-ml/"
           pincode: Number(pincode) // External parameter
         };
@@ -231,7 +263,7 @@ await page.addInitScript(() => {
     // await page.waitForSelector("section ul li[class*='PaginateItems']");
   } catch (error) {
     // take a screen shot
-    await page.screenshot({ path: 'screenshot.png' });
+    // await page.screenshot({ path: 'screenshot.png' });
     console.log(`Job ${jobId} failed with error: ${error.message}`);
     return [[], null];
   } finally {
