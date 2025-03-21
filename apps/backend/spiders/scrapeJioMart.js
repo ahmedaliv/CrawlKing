@@ -418,30 +418,8 @@ export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }
 function extractQuantity(title) {
-  const quantityPattern =
-    /(\d+\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch)\b)/i;
-  const match = title.match(quantityPattern);
-  return match ? match[0] : ''; // Return only the first match or an empty string
-}
-function extractQuantity(title) {
   const quantityPattern = /\b(\d*\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch))\b/i;
   const match = title.match(quantityPattern);
   return match ? match[0] : "";
 }
 
-function cleanText(title, brand, source) {
-  let cleanedTitle = title.toLowerCase();
-  const quantity = extractQuantity(title);
-
-  if (quantity) {
-    cleanedTitle = cleanedTitle.replace(new RegExp(`\\b${quantity.toLowerCase()}\\b`, "gi"), "").trim();
-  }
-  if (brand) {
-    cleanedTitle = cleanedTitle.replace(new RegExp(`\\b${brand.toLowerCase()}\\b`, "gi"), "").trim();
-  }
-  if (source) {
-    cleanedTitle = cleanedTitle.replace(new RegExp(`\\b${source.toLowerCase()}\\b`, "gi"), "").trim();
-  }
-  return cleanedTitle.replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-}
-// main(null, null, 'https://www.jiomart.com/c/groceries/2', '500075');
