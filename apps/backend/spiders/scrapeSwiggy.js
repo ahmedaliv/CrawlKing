@@ -54,8 +54,7 @@ async function runJob(job, jobId, url, pincode) {
   });
 
   try {
-    // page.setDefaultTimeout(60000 * 3);
-    // await page.goto(url);
+    page.setDefaultTimeout(60000 * 3);
     await page.goto('https://www.swiggy.com/');
     // set the pincode in the base website then we go to the one to be scrapped
     await page.waitForSelector('input[id="location"]');
@@ -155,226 +154,226 @@ async function runJob(job, jobId, url, pincode) {
     await job.save();
     const productMap = {};
     // intercept the request
-    const subCats = await page.locator('ul li').all();
+    // const subCats = await page.locator('ul li').all();
     const allProducts = [];
-    console.log(`Sub Categories: ${subCats.length}`);
-    for (let i = 0; i < subCats.length; i++) {
-      requestUrl = '';
-      headers = {};
-      requestBody = null;
-      await subCats[i].click();
-      await page.waitForTimeout(3000);
-      await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
-      try {
-        const element = await Promise.race([
-          page.waitForSelector('div[data-testid="default_container_ux4"]', {
-            timeout: 10000
-          }),
-          page.waitForSelector('div[data-testid="ItemWidgetContainer"]', {
-            timeout: 10000
-          })
-        ]);
-        console.log(
-          'Found element:'
-          // await element.evaluate((el) => el.outerHTML)
+    // console.log(`Sub Categories: ${subCats.length}`);
+    // for (let i = 0; i < subCats.length; i++) {
+    requestUrl = '';
+    headers = {};
+    requestBody = null;
+    // await subCats[i].click();
+    await page.waitForTimeout(3000);
+    await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
+    try {
+      const element = await Promise.race([
+        page.waitForSelector('div[data-testid="default_container_ux4"]', {
+          timeout: 10000
+        }),
+        page.waitForSelector('div[data-testid="ItemWidgetContainer"]', {
+          timeout: 10000
+        })
+      ]);
+      console.log(
+        'Found element:'
+        // await element.evaluate((el) => el.outerHTML)
+      );
+    } catch (error) {
+      console.error('Neither element appeared in time:', error);
+    }
+    if (requestUrl === '') {
+      console.log('Failed to intercept the request, Scrolling Now');
+      await page.evaluate(async () => {
+        let lastElement = document.querySelector(
+          'div[data-testid="default_container_ux4"]:last-of-type'
         );
-      } catch (error) {
-        console.error('Neither element appeared in time:', error);
-      }
-      if (requestUrl === '') {
-        console.log('Failed to intercept the request, Scrolling Now');
-        await page.evaluate(async () => {
-          let lastElement = document.querySelector(
-            'div[data-testid="default_container_ux4"]:last-of-type'
+        // if not found, try the other selector
+        if (!lastElement) {
+          console.log('Trying the other selector');
+          lastElement = document.querySelector(
+            'div[data-testid="ItemWidgetContainer"]:last-of-type'
           );
-          // if not found, try the other selector
-          if (!lastElement) {
-            console.log('Trying the other selector');
-            lastElement = document.querySelector(
-              'div[data-testid="ItemWidgetContainer"]:last-of-type'
+        }
+        if (lastElement) {
+          lastElement.scrollIntoView();
+          // wait for 2 seconds
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+
+          // Scroll 100px more
+          window.scrollBy(0, 100);
+        }
+      });
+    }
+
+    async function findTotalPages(url) {
+      if (!url || !url.includes('pageNo=')) {
+        console.log(`Invalid URL: ${url}`);
+        throw new Error('Invalid API endpoint URL');
+      }
+      console.log(`Finding total pages for URL: ${url}`);
+      let start = 0; // First page
+      let end = 1000; // Assume an initial maximum page count
+
+      let ans = -1;
+
+      while (start <= end) {
+        const mid = Math.floor((start + end) / 2);
+        let newUrl = url.replace(/pageNo=\d+/, `pageNo=${mid}`);
+
+        try {
+          let res;
+          if (result.type === 'default_container_ux4') {
+            res = await page.request.get(newUrl, {
+              headers: headers
+            });
+          } else {
+            // For POST requests
+            newUrl = newUrl.replace(/offset=\d+/, `offset=${mid * 20}`);
+            res = await page.request.post(newUrl, {
+              headers: headers,
+              data: requestBody
+            });
+          }
+
+          const randomDelay = () => Math.floor(Math.random() * (5000 - 2000) + 2000); // 2-5 sec
+
+          await page.waitForTimeout(randomDelay());
+          if (res.status() === 200) {
+            const data = await res.json(); // Parse the JSON response
+
+            // Check if the page has products
+            if (data['data'] && data['data']['hasMore'] === false) {
+              ans = mid; // Update totalPages to the current mid
+              end = mid - 1; // Search in the upper half
+            } else {
+              start = mid + 1; // Search in the lower half
+            }
+          } else {
+            throw new Error(
+              `Failed to fetch page ${mid}, status: ${res.status()}`
             );
           }
-          if (lastElement) {
-            lastElement.scrollIntoView();
-            // wait for 2 seconds
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-
-            // Scroll 100px more
-            window.scrollBy(0, 100);
-          }
-        });
+        } catch (error) {
+          console.error(`Error fetching page ${mid}:`, error.message);
+          end = mid - 1; // Adjust the search range and continue
+        }
       }
 
-      async function findTotalPages(url) {
-        if (!url || !url.includes('pageNo=')) {
-          console.log(`Invalid URL: ${url}`);
-          throw new Error('Invalid API endpoint URL');
+      console.log(`Total pages: ${ans}`);
+      return ans === -1 ? 0 : ans;
+    }
+
+    const totalPages = await findTotalPages(requestUrl);
+    console.log(`Total pages: ${totalPages}`);
+    if (requestUrl) {
+      job.attrs.data.progress = 15;
+      await job.save();
+      const products = [];
+      let totalScrapped = 0;
+      for (let i = 0; i <= totalPages; i++) {
+        if (result.type !== 'default_container_ux4') {
+          requestUrl = requestUrl.replace(/offset=\d+/, `offset=${i * 20}`);
         }
-        console.log(`Finding total pages for URL: ${url}`);
-        let start = 0; // First page
-        let end = 1000; // Assume an initial maximum page count
+        let currentUrl = requestUrl.replace(/pageNo=\d+/, `pageNo=${i}`);
+        // .replace(/limit=\d+/, `limit=100`);
+        console.log(`Requesting page ${i} with URL: ${currentUrl}`);
+        const response = await fetchWithRetry(
+          page,
+          currentUrl,
+          headers,
+          requestBody
+        );
 
-        let ans = -1;
-
-        while (start <= end) {
-          const mid = Math.floor((start + end) / 2);
-          let newUrl = url.replace(/pageNo=\d+/, `pageNo=${mid}`);
-
-          try {
-            let res;
-            if (result.type === 'default_container_ux4') {
-              res = await page.request.get(newUrl, {
-                headers: headers
-              });
-            } else {
-              // For POST requests
-              newUrl = newUrl.replace(/offset=\d+/, `offset=${mid * 20}`);
-              res = await page.request.post(newUrl, {
-                headers: headers,
-                data: requestBody
-              });
-            }
-
-            const randomDelay = () => Math.floor(Math.random() * (5000 - 2000) + 2000); // 2-5 sec
-
-            await page.waitForTimeout(randomDelay());
-            if (res.status() === 200) {
-              const data = await res.json(); // Parse the JSON response
-
-              // Check if the page has products
-              if (data['data'] && data['data']['hasMore'] === false) {
-                ans = mid; // Update totalPages to the current mid
-                end = mid - 1; // Search in the upper half
-              } else {
-                start = mid + 1; // Search in the lower half
-              }
-            } else {
-              throw new Error(
-                `Failed to fetch page ${mid}, status: ${res.status()}`
-              );
-            }
-          } catch (error) {
-            console.error(`Error fetching page ${mid}:`, error.message);
-            end = mid - 1; // Adjust the search range and continue
-          }
+        if (response.status() !== 200) {
+          console.error(`Request failed with status ${response.status()}`);
+          continue;
         }
-
-        console.log(`Total pages: ${ans}`);
-        return ans === -1 ? 0 : ans;
-      }
-
-      const totalPages = await findTotalPages(requestUrl);
-      console.log(`Total pages: ${totalPages}`);
-      if (requestUrl) {
-        job.attrs.data.progress = 15;
-        await job.save();
-        const products = [];
-        let totalScrapped = 0;
-        for (let i = 0; i <= totalPages; i++) {
-          if (result.type !== 'default_container_ux4') {
-            requestUrl = requestUrl.replace(/offset=\d+/, `offset=${i * 20}`);
+        let data;
+        try {
+          data = await response.json();
+        } catch (error) {
+          console.error('Failed to parse JSON:', error);
+          continue;
+        }
+        try {
+          let milestoneData;
+          if (result.type === 'default_container_ux4') {
+            milestoneData = data['data']['items'];
+          } else {
+            milestoneData =
+              data['data']['widgets'][data['data']['widgets'].length - 1][
+              'data'
+              ];
           }
-          let currentUrl = requestUrl.replace(/pageNo=\d+/, `pageNo=${i}`);
-          // .replace(/limit=\d+/, `limit=100`);
-          console.log(`Requesting page ${i} with URL: ${currentUrl}`);
-          const response = await fetchWithRetry(
-            page,
-            currentUrl,
-            headers,
-            requestBody
+          console.log(
+            `Current Data len: ${milestoneData.length} for page ${i}`
           );
-
-          if (response.status() !== 200) {
-            console.error(`Request failed with status ${response.status()}`);
-            continue;
-          }
-          let data;
-          try {
-            data = await response.json();
-          } catch (error) {
-            console.error('Failed to parse JSON:', error);
-            continue;
-          }
-          try {
-            let milestoneData;
-            if (result.type === 'default_container_ux4') {
-              milestoneData = data['data']['items'];
-            } else {
-              milestoneData =
-                data['data']['widgets'][data['data']['widgets'].length - 1][
-                'data'
-                ];
-            }
-            console.log(
-              `Current Data len: ${milestoneData.length} for page ${i}`
-            );
-            products.push(...milestoneData);
-            totalScrapped = products.length;
-            console.log(`Total So Far:${totalScrapped}`);
-            const hasMore = data['data']['hasMore'];
-            if (!hasMore) {
-              console.log('Finished scraping all products');
-              break;
-            }
-          } catch (error) {
-            console.log(`broke from the loop with ${error.message}`);
+          products.push(...milestoneData);
+          totalScrapped = products.length;
+          console.log(`Total So Far:${totalScrapped}`);
+          const hasMore = data['data']['hasMore'];
+          if (!hasMore) {
+            console.log('Finished scraping all products');
             break;
           }
+        } catch (error) {
+          console.log(`broke from the loop with ${error.message}`);
+          break;
         }
-        console.log(`Total Products: ${products.length}`);
-
-
-        for (let i = 0; i < products.length; i++) {
-          const product = products[i];
-          const key = `${product['brand_id']}-${product['display_name']}`;
-
-          if (!productMap[key]) {
-            productMap[key] = {
-              brand: product['brand'],
-              title: product['display_name'],
-              variant: [],
-              articleIds: new Set(), // Track added article IDs
-              url: `https://www.swiggy.com/instamart/item/${product['product_id']
-                }?storeId=${product['variations']?.[0]?.store_id || ''}`,
-              pincode: Number(pincode)
-            };
-          }
-
-          (product['variations'] || []).forEach((variant) => {
-            if (!productMap[key].articleIds.has(variant['id'])) {
-              productMap[key]['variant'].push({
-                quantity: variant['sku_quantity_with_combo'],
-                mrp: variant['price']['mrp'],
-                price: variant['price']['offer_price'],
-                articleId: variant['id'],
-                variantUrl: `https://www.swiggy.com/instamart/item/${product['product_id']
-                  }?storeId=${product['variations']?.[0]?.store_id || ''}`,
-              });
-              productMap[key].articleIds.add(variant['id']);
-            }
-          });
-        }
-
-        // Remove the 'articleIds' set before final output
-        const curProducts = Object.values(productMap).map(
-          ({ articleIds, ...rest }) => rest
-        );
-
-        console.log(`currentSubCat Products: ${curProducts.length}`);
-        console.log(`Total Products: ${allProducts.length}`);
-
-        job.attrs.data.progress =
-          15 + Math.ceil(((i + 1) * 85) / subCats);
-        job.attrs.data.total_products = allProducts.length;
-        await job.save();
-        allProducts.push(...curProducts);
-      } else {
-        console.log(
-          `failed to send the request, check the url for subCat ${i}`
-        );
       }
-      await page.waitForTimeout(15000)
+      console.log(`Total Products: ${products.length}`);
+
+
+      for (let i = 0; i < products.length; i++) {
+        const product = products[i];
+        const key = `${product['brand_id']}-${product['display_name']}`;
+
+        if (!productMap[key]) {
+          productMap[key] = {
+            brand: product['brand'],
+            title: product['display_name'],
+            variant: [],
+            articleIds: new Set(), // Track added article IDs
+            url: `https://www.swiggy.com/instamart/item/${product['product_id']
+              }?storeId=${product['variations']?.[0]?.store_id || ''}`,
+            pincode: Number(pincode)
+          };
+        }
+
+        (product['variations'] || []).forEach((variant) => {
+          if (!productMap[key].articleIds.has(variant['id'])) {
+            productMap[key]['variant'].push({
+              quantity: variant['sku_quantity_with_combo'],
+              mrp: variant['price']['mrp'],
+              price: variant['price']['offer_price'],
+              articleId: variant['id'],
+              variantUrl: `https://www.swiggy.com/instamart/item/${product['product_id']
+                }?storeId=${product['variations']?.[0]?.store_id || ''}`,
+            });
+            productMap[key].articleIds.add(variant['id']);
+          }
+        });
+        job.attrs.data.progress =
+          15 + Math.ceil(((i + 1) * 85) / products.length);
+        job.attrs.data.total_products += i + 1;
+        await job.save();
+      }
+
+      // Remove the 'articleIds' set before final output
+      const curProducts = Object.values(productMap).map(
+        ({ articleIds, ...rest }) => rest
+      );
+
+      // console.log(`currentSubCat Products: ${curProducts.length}`);
+      // console.log(`Total Products: ${allProducts.length}`);
+
+      allProducts.push(...curProducts);
+    } else {
+      console.log(
+        `failed to send the request, check the url for subCat ${i}`
+      );
     }
+    await page.waitForTimeout(15000)
+    // }
     job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
     return [allProducts, fileName];

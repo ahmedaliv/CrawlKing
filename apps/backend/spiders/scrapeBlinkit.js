@@ -367,7 +367,7 @@ async function runJob(job, jobId, url, pincode) {
     await page.screenshot({ path: 'screenshot.png' });
     return [[], null];
   } finally {
-    // await browser.close();
+    await browser.close();
     const endTime = performance.now();
   }
 }
