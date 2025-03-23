@@ -2,7 +2,7 @@ import playwright from 'playwright';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless: true
+    headless: false
   });
 
   try {
@@ -74,13 +74,13 @@ async function runJob(job, jobId, url, pincode) {
     const allProducts = [];
     const productMap = {};
     const titleIdMap = {};
-    const subCats = await page.locator('a[href*="cn"][id]').all();
-    for (let idx = 0; idx < subCats.length; idx++) {
-      console.log(
-        `scraping subcategory ${idx + 1} named ${await subCats[
-          idx
-        ].textContent()}`
-      );
+    // const subCats = await page.locator('a[href*="cn"][id]').all();
+    // for (let idx = 0; idx < subCats.length; idx++) {
+    //   console.log(
+    //     `scraping subcategory ${idx + 1} named ${await subCats[
+    //       idx
+    //     ].textContent()}`
+    //   );
       let requestUrl = '';
       let headers = {};
       await page.route(
@@ -97,7 +97,7 @@ async function runJob(job, jobId, url, pincode) {
           }
         }
       );
-      await subCats[idx].click();
+      // await subCats[idx].click();
       if (requestUrl === '') {
         console.log('Failed to intercept the request, Scrolling Now');
         await page.evaluate(async () => {
@@ -391,15 +391,15 @@ async function runJob(job, jobId, url, pincode) {
               titleIdMap[normalizedName] = productId;
             }
           }
+          // job.attrs.data.total_products = productMap.size;
+          // job.attrs.data.progress =
+          //   15 + Math.ceil(((idx + 1) * 85) / transformedProducts.length);
+          // await job.save();
         }
-        job.attrs.data.total_products = productMap.size;
-        job.attrs.data.progress =
-          15 + Math.ceil(((idx + 1) * 85) / subCats.length);
-        await job.save();
       } else {
         console.log('failed to send the request, check the url');
       }
-    }
+    // }
     allProducts.push(...Object.values(productMap));
     job.attrs.data.progress = 100;
     job.attrs.data.total_products = allProducts.length;
