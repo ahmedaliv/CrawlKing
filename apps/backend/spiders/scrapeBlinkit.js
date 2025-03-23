@@ -6,7 +6,7 @@ import stealth from 'puppeteer-extra-plugin-stealth';
 chromium.use(stealth());
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
-    headless: false,
+    headless: true,
     args: [
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
