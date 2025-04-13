@@ -7,6 +7,7 @@ const MAX_RETRIES = 3;
 const router = express.Router();
 const max_retries = 3; // Define your max retries
 
+// TODO: the job could be group of scraping jobs to apply matching products so check if this would change this function
 router.post('/retry/:jobid', async (req, res) => {
   const { jobid } = req.params;
   try {
@@ -47,6 +48,7 @@ router.post('/retry/:jobid', async (req, res) => {
   }
 });
 
+// TODO: the status of group job would be computed from the status of the jobs in the group
 // Endpoint to check the status of a job
 router.get('/status/:jobId', async (req, res) => {
   const { jobId } = req.params;
@@ -101,10 +103,10 @@ router.post('/stop', async (req, res) => {
     if (!job || job.length === 0) {
       return res.status(404).json({ error: 'Job not found' });
     }
-    // only stop it if it is not completed 
+    // only stop it if it is not completed
     if (job[0].attrs.data.status === 'completed') {
       return res.status(400).json({ error: 'Job already completed' });
-    }  
+    }
     await job[0].remove();
     return res.json({ message: 'Job stopped successfully' });
   } catch (error) {
