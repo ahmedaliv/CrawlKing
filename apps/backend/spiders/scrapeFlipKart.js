@@ -10,7 +10,7 @@ const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrent
 
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
-    headless: true // Run headless for better performance
+    headless: process.env.SPIDERS_HEADLESS_MODE === 'true' // Run headless for better performance
   });
   try {
     const userAgent = new UserAgent({ deviceCategory: 'desktop' });
