@@ -118,7 +118,10 @@ router.post('/stop', async (req, res) => {
 // Endpoint to list all jobs
 router.get('/', async (req, res) => {
   try {
-    const agendaJobs = await agenda.jobs({}, { lastRunAt: -1 });
+    const agendaJobs = await agenda.jobs(
+      { name: 'scrape job', 'data.forGroup': { $ne: true } },
+      { lastRunAt: -1 }
+    );
     const jobs = agendaJobs.map((job) => {
       const jobData = job.attrs.data;
       let nextRunAt = job.attrs.nextRunAt;
@@ -173,6 +176,68 @@ router.get('/', async (req, res) => {
     return res.status(500).json({ error: 'Error getting jobs' });
   }
 });
+
+router.get('/groups', async (req, res) => {
+  try {
+    const agendaJobs = await agenda.jobs(
+      { name: 'scrape group' },
+      { lastRunAt: -1 }
+    );
+    const jobs = agendaJobs.map((job) => {
+      const jobData = job.attrs.data;
+      let nextRunAt = job.attrs.nextRunAt;
+      const repeatInterval = job.attrs.repeatInterval;
+      const lastFinishedAt = job.attrs.lastFinishedAt;
+
+      let status;
+      if (nextRunAt && nextRunAt > Date.now()) {
+        status = 'queued';
+      } else if (jobData.status === 'completed') {
+        status = 'completed';
+      } else if (jobData.status === 'failed') {
+        status = 'failed';
+      } else {
+        status = 'running';
+      }
+
+      if (
+        (jobData.type === 'immediate' || jobData.type === 'scheduled') &&
+        status === 'completed'
+      ) {
+        nextRunAt = null;
+      }
+
+      const jobResponse = {
+        jobId: jobData.jobId,
+        name: jobData.name,
+        urls: jobData.urls,
+        pincode: jobData.pincode,
+        status,
+        type: jobData.type,
+        repeatInterval: repeatInterval || null,
+        nextRunAt: nextRunAt || null,
+        lastFinishedAt:
+          status === 'completed' || status === 'queued' ? lastFinishedAt : null,
+        lastRunStatus: jobData.lastRunStatus
+      };
+
+      // Only include failure-related fields if the status is not 'completed'
+      if (status !== 'completed') {
+        jobResponse.failCount = jobData.failCount || 0;
+        jobResponse.failedAt = jobData.failedAt || null;
+        jobResponse.failReason = jobData.failReason || null;
+      }
+
+      return jobResponse;
+    });
+
+    return res.json(jobs);
+  } catch (error) {
+    console.error('Error getting jobs:', error);
+    return res.status(500).json({ error: 'Error getting jobs' });
+  }
+});
+
 router.get('/download/:jobId', async (req, res) => {
   const { jobId } = req.params;
 
@@ -203,8 +268,31 @@ router.get('/download/:jobId', async (req, res) => {
 router.delete('/', async (req, res) => {
   try {
     // Remove all jobs from Agenda
-    const removedJobs = await agenda.cancel({});
+    const removedJobs = await agenda.cancel({
+      name: 'scrape job',
+      'data.forGroup': { $ne: true }
+    });
 
+    // Remove all associated scrape data from MongoDB
+    await ScrapeData.deleteMany({});
+
+    return res.json({
+      message: 'All jobs and associated data removed successfully',
+      jobsRemoved: removedJobs
+    });
+  } catch (error) {
+    console.error('Error removing jobs and data:', error);
+    return res.status(500).json({ error: 'Error removing jobs and data' });
+  }
+});
+router.delete('/groups', async (req, res) => {
+  try {
+    // Remove all jobs from Agenda
+    const removedJobs = await agenda.cancel({ name: 'scrape group' });
+    await agenda.cancel({
+      name: 'scrape job',
+      'data.forGroup': { $e: true }
+    });
     // Remove all associated scrape data from MongoDB
     await ScrapeData.deleteMany({});
 

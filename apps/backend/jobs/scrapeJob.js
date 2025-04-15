@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+import { __dirname } from './paths.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -66,12 +67,16 @@ async function handleJobFailureCase(job, error) {
   // Reschedule if max retries have not been reached
   if (job.attrs.data.failCount < MAX_RETRIES) {
     console.log(
-      `Retrying job for ${job.attrs.data}, attempt ${job.attrs.data.failCount}`
+      `Retrying job for ${JSON.stringify(job.attrs.data)}, attempt ${
+        job.attrs.data.failCount
+      }`
     );
     await job.schedule('in 10 seconds'); // Adjust retry time as needed
     await job.save();
   } else {
-    console.log(`Job failed for ${job.attrs.data}. Max retries reached.`);
+    console.log(
+      `Job failed for ${JSON.stringify(job.attrs.data)}. Max retries reached.`
+    );
     await job.fail(error.message);
     job.attrs.data.status = 'failed';
     await job.save();
@@ -114,23 +119,27 @@ export default function defineScrapeJob(agenda) {
 
 export function defineScrapeGroup(agenda) {
   agenda.define('scrape group', async (job) => {
-    const { urls, pincode, groupJobIds, jobId, type } = job.attrs.data;
+    const { urls, pincode, groupJobIds, jobId, type, name } = job.attrs.data;
     try {
       job.attrs.data.status = 'running';
       await job.save();
+      const jobIds = urls.map(() => uuid());
       const jobs = await Promise.all(
-        urls.map((url) => {
-          const newJobId = uuid();
+        urls.map((url, index) => {
+          const newJobId = jobIds[index];
           return agenda.now('scrape job', {
             url,
             pincode,
             jobId: newJobId,
-            type: 'immediate'
+            type: 'immediate',
+            forGroup: true
           });
         })
       );
-      const childJobIds = new Set(
-        jobs.map((childJob) => childJob.attrs._id.toString())
+      const childJobIds = new Set(jobIds);
+      console.log(
+        '🪵 [scrapeJob.js:136] ~ token ~ \x1b[0;32mchildJobIds\x1b[0m = ',
+        childJobIds
       );
       job.attrs.data.groupJobIds = Array.from(childJobIds);
       job.attrs.data.status = 'running-scraping';
@@ -140,33 +149,44 @@ export function defineScrapeGroup(agenda) {
       // Wait for all child jobs to complete or fail
       await new Promise((resolve) => {
         const completeHandler = (completedJob) => {
-          const id = completedJob.attrs._id.toString();
+          console.log('inside completeHandler');
+          const id = completedJob.attrs.data.jobId.toString();
+          console.log(
+            '🪵 [scrapeJob.js:152] ~ token ~ \x1b[0;32mid\x1b[0m = ',
+            id
+          );
           if (childJobIds.has(id)) {
-            childJobIds.delete(id);
             successed++;
-            if (childJobIds.size === 0) resolve();
+            childJobIds.delete(id);
+            if (childJobIds.size === 0) cleanup();
           }
         };
 
         const failHandler = (error, failedJob) => {
-          const id = failedJob.attrs._id.toString();
+          console.log('inside failHandler');
+          const id = failedJob.attrs.data.jobId.toString();
+          console.log(
+            '🪵 [scrapeJob.js:163] ~ token ~ \x1b[0;32mid\x1b[0m = ',
+            id
+          );
           if (childJobIds.has(id)) {
-            childJobIds.delete(id);
             failed++;
-            if (childJobIds.size === 0) resolve();
+            childJobIds.delete(id);
+            if (childJobIds.size === 0) cleanup();
           }
+        };
+
+        const cleanup = () => {
+          console.log('inside cleanup');
+          agenda.off('complete', completeHandler);
+          agenda.off('fail', failHandler);
+          resolve();
         };
 
         agenda.on('complete', completeHandler);
         agenda.on('fail', failHandler);
-
-        // Cleanup listeners after resolution
-        promise.then(() => {
-          agenda.off('complete', completeHandler);
-          agenda.off('fail', failHandler);
-        });
       });
-
+      console.log('finished scrapping for group job', jobId, successed, failed);
       if (successed < 2) {
         throw new Error('Failed to scrape all URLs');
       }
@@ -175,13 +195,15 @@ export function defineScrapeGroup(agenda) {
       console.log('All child jobs completed for group job', jobId);
       job.attrs.data.status = 'running-matching';
       await job.save();
+      // TODO: define the folder path here and pass it to the normalizeJobProducts function instead of returning it from the function, always try to make parent controls the child
       // normalize the result of the successful child jobs
-      const folderPath = await normalizeJobProducts(jobs);
+      const folderPath = path.join(__dirname, 'data', 'groups', jobId);
+      await normalizeJobProducts(job, jobs, folderPath);
       // run python code
       await runProductMatcher(folderPath);
       console.log('🎉 Matching completed!');
       // load the result from fs
-      const outputData = await fsreadFile(
+      const outputData = await fs.readFile(
         path.join(folderPath, 'output.json'),
         'utf8'
       );
@@ -191,6 +213,7 @@ export function defineScrapeGroup(agenda) {
       await savedScrape.save();
       // last run (we fininshed)
       job.attrs.data.status = 'completed';
+      await job.save();
       console.log(`Scraping completed for ${{ urls, pincode }}`);
       await handleJobRecurringStatus(job, type);
     } catch (error) {
@@ -199,9 +222,9 @@ export function defineScrapeGroup(agenda) {
   });
 }
 
-async function normalizeJobProducts(group, jobs) {
+async function normalizeJobProducts(group, jobs, folderPath) {
   // load jobs data
-  const allProducts = [];
+  let allProducts = [];
   /**
    * Store product count per job
    */
@@ -294,13 +317,8 @@ async function normalizeJobProducts(group, jobs) {
 
   try {
     const jsonString = JSON.stringify(normalizedProducts, null, 2);
-    const folderPath = path.join(
-      __dirname,
-      'data',
-      'groups',
-      group.attrs.data.jobId
-    );
     const filePath = path.join(folderPath, 'normalizedProducts.json');
+    await fs.mkdir(folderPath, { recursive: true }); // ensures the path exists
     await fs.writeFile(filePath, jsonString, 'utf8');
     console.log('Normalized product data saved to normalizedProducts.json');
     return folderPath;
@@ -430,28 +448,27 @@ function getSourceFromUrl(url) {
   return null;
 }
 
-function runPythonMatchProducts(folderPath) {
-  /**
-   * Runs the Python product matcher script with a folder path.
-   * @param {string} folderPath - Absolute or relative path to the folder.
-   * @returns {Promise<{ stdout: string, stderr: string }>}
-   */
-  async function runProductMatcher(folderPath) {
-    const scriptPath = path.join(__dirname, 'main.py');
+/**
+ * Runs the Python product matcher script with a folder path.
+ * @param {string} folderPath - Absolute or relative path to the folder.
+ * @returns {Promise<{ stdout: string, stderr: string }>}
+ */
+async function runProductMatcher(folderPath) {
+  const scriptPath = path.join(__dirname, 'main.py');
+  const venvPython = path.join(__dirname, '..', 'venv', 'bin', 'python');
 
-    try {
-      const { stdout, stderr } = await execFileAsync('python3', [
-        scriptPath,
-        folderPath
-      ]);
-      if (stderr) {
-        console.error('⚠️ Python stderr:', stderr);
-      }
-      console.log('✅ Python stdout:', stdout);
-      return { stdout, stderr };
-    } catch (error) {
-      console.error('❌ Error running script:', error);
-      throw error;
+  try {
+    const { stdout, stderr } = await execFileAsync(venvPython, [
+      scriptPath,
+      folderPath
+    ]);
+    if (stderr) {
+      console.error('⚠️ Python stderr:', stderr);
     }
+    console.log('✅ Python stdout:', stdout);
+    return { stdout, stderr };
+  } catch (error) {
+    console.error('❌ Error running script:', error);
+    throw error;
   }
 }
