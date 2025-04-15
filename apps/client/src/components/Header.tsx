@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, NavLink } from 'react-router-dom';
 import { Button } from './ui/button';
 import { LogOut as LogOutIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 function LogOutButton() {
   const navigate = useNavigate();
@@ -18,19 +19,77 @@ function LogOutButton() {
     navigate('/login'); // Adjust the path as needed
   };
   return (
-    <div className="h-10 w-full ">
-      <Button
-        variant={'ghost'}
-        onClick={handleLogout}
-        className="absolute right-4 top-0"
-        size={'sm'}
-      >
-        <LogOutIcon size={18} />
-      </Button>
-    </div>
+    <Button
+      variant={'ghost'}
+      onClick={handleLogout}
+      className="ml-4"
+      size={'sm'}
+    >
+      <LogOutIcon size={18} />
+    </Button>
   );
 }
 
 export function Header() {
-  return <LogOutButton />;
+  return (
+    <div className="flex items-center justify-between w-full h-14 px-4 border-b">
+      <div className="font-bold text-xl">CrawlKing</div>
+
+      <div className="flex items-center">
+        <nav className="flex space-x-4 mr-4">
+          <NavLink
+            to="/"
+            className={({ isActive }) =>
+              cn(
+                'transition-colors',
+                isActive
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )
+            }
+          >
+            {({ isActive }) => (
+              <Button
+                variant={isActive ? 'default' : 'ghost'}
+                className={cn(
+                  'transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted'
+                )}
+              >
+                Scrape Job
+              </Button>
+            )}
+          </NavLink>
+          <NavLink
+            to="/group"
+            className={({ isActive }) =>
+              cn(
+                'transition-colors',
+                isActive
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )
+            }
+          >
+            {({ isActive }) => (
+              <Button
+                variant={isActive ? 'default' : 'ghost'}
+                className={cn(
+                  'transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted'
+                )}
+              >
+                Scrape Group
+              </Button>
+            )}
+          </NavLink>
+        </nav>
+        <LogOutButton />
+      </div>
+    </div>
+  );
 }

@@ -5,7 +5,9 @@ export function Layout() {
   return (
     <div className="flex size-full w-full flex-col">
       <Header />
-      <Outlet />
+      <div className="flex size-full w-full flex-col">
+        <Outlet />
+      </div>
     </div>
   );
 }
