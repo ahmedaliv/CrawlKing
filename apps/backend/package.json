@@ -5,8 +5,10 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "prestart": "chmod +x ./jobs/setupPy.sh && ./jobs/setupPy.sh",
     "start": "node index.js",
     "test": "node test.js",
+    "predev": "chmod +x ./jobs/setupPy.sh && ./jobs/setupPy.sh",
     "dev": "nodemon index.js"
   },
   "keywords": [],

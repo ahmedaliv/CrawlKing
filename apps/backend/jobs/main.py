@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-from product_matcher import match_products  
+from product_matching import match_products  
 from image_download import process_images
 
 def main():

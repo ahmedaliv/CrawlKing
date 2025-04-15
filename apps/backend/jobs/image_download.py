@@ -92,10 +92,10 @@ def process_images(folder_path):
             print(f"Processed {idx + 1}/{total_images} images: Downloaded = {downloaded_count}, Failed = {failed_count}")
 
     OUTPUT_JSON_PATH = os.path.join(folder_path, "normalizedProducts_with_paths.json")
-    with open(OUTPUT_JSON, 'w') as f:
+    with open(OUTPUT_JSON_PATH, 'w') as f:
         json.dump(products, f, indent=4)
 
-    print(f"Download complete. Updated JSON saved as {OUTPUT_JSON}. Check image_download.log for details.")
+    print(f"Download complete. Updated JSON saved as {OUTPUT_JSON_PATH}. Check image_download.log for details.")
     return OUTPUT_JSON_PATH
 
 # -------- Entry point --------
