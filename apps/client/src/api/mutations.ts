@@ -1,5 +1,13 @@
-import { FETCH_JOBS_QUERY } from '@/constants/queryKeys';
-import { deleteAllJobs, retryJob, signIn } from '@/utils/api';
+import {
+  FETCH_GROUP_JOBS_QUERY,
+  FETCH_JOBS_QUERY
+} from '@/constants/queryKeys';
+import {
+  deleteAllGroupJobs,
+  deleteAllJobs,
+  retryJob,
+  signIn
+} from '@/utils/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -22,6 +30,17 @@ export const useDeleteAllJobsMutation = () => {
     }
   });
 };
+
+export const useDeleteAllGroupJobsMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteAllGroupJobs,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: FETCH_GROUP_JOBS_QUERY });
+    }
+  });
+};
+
 export const useSignInMutation = (
   setErrorMessage: (message: string) => void
 ) => {

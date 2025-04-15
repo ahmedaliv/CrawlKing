@@ -23,17 +23,26 @@ export type JobStatus =
   | 'retrying'
   | 'unknown'
   | 'cancelled';
+export type GroupJobStatus =
+  | 'queued'
+  | 'running-matching'
+  | 'running-scraping'
+  | 'failed'
+  | 'completed'
+  | 'retrying'
+  | 'unknown'
+  | 'cancelled';
 
 export interface JobProgressResponse {
   status: JobStatus;
   progress: number;
   totalProducts: number | string;
 }
-export type Job = {
+
+export type JobMetadata = {
   jobId: string;
-  url: string;
-  pincode: string;
-  status: JobStatus;
+  // TODO: job status should be in the metadata but the status is different between jobs and group job so we removed it from the metadata
+  // status: JobStatus;
   type: jobType;
   repeatInterval: string;
   nextRunAt: string;
@@ -41,8 +50,21 @@ export type Job = {
   failedAt: string;
   failReason: string;
   failCount: number;
-  progress: number;
   lastRunStatus: string;
+};
+
+export type Job = JobMetadata & {
+  url: string;
+  pincode: string;
+  status: JobStatus;
+  progress: number;
+};
+
+export type GroupJob = JobMetadata & {
+  urls: string[];
+  pincode: string;
+  status: GroupJobStatus;
+  name: string;
 };
 
 export interface SubmitScrapeJobPayload {
