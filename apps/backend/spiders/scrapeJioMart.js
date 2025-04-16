@@ -335,7 +335,7 @@ async function extractSingleProduct(page, productLocator, pincode) {
     }
 
     // Extract image URL
-    const imageLocator = productLocator.locator('> a > div');
+    const imageLocator = productLocator.locator('> a > div.plp-card-container');
     let imageUrl = '';
     if ((await imageLocator.count()) > 0) {
       const lastPart = await imageLocator.getAttribute('data-image')
