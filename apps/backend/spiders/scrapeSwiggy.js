@@ -127,7 +127,7 @@ async function runJob(job, jobId, url, pincode) {
     if (result.type === 'default_container_ux4') {
       categoryName = await page
         .locator(
-          'div h1'
+          'div.content > div:first-child >  div:first-child  div:last-child '
         )
         .textContent();
     } else {
