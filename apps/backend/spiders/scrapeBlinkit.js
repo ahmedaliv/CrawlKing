@@ -52,12 +52,12 @@ async function runJob(job, jobId, url, pincode) {
     });
   });
   try {
-    page.setDefaultTimeout(60000 * 3);
+    // page.setDefaultTimeout(60000 * 3);
     await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
     let headers = {};
     await page.goto(url);
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForSelector("div[class*='ProductsContainer'] a");
+    await page.waitForSelector("div[class*='LocationBar__SubtitleContainer']");
     // Handle location input (Pincode)
     await page.waitForSelector("div[class*='LocationBar__SubtitleContainer']");
     const pincodeButton = page
@@ -77,7 +77,7 @@ async function runJob(job, jobId, url, pincode) {
         `div.address-container-v1 div[class*="LocationDetailContainer"]:has-text("${pincode}")`
       )
       .first();
-    await page.route(/\/v2\/listing\?.*/, (route) => {
+    await page.route(/\/v1\/layout\/listing_widgets\?.*/, (route) => {
       if (Object.keys(headers).length === 0) {
         headers = route.request().headers();
         console.log(`got headers from listing tracker`);
@@ -86,21 +86,12 @@ async function runJob(job, jobId, url, pincode) {
         route.continue(); // Allow the request to proceed
       }
     });
-    function cleanProductTitle(title) {
-      return title
-        .replace(/[()]/g, '') // Remove parentheses but keep their content
-        .replace(/\d+\.?\d*\s*(kg|g|l|ml)\b/gi, '') // Remove weight/volume measurements (e.g., 10kg, 500g, 1.5l, 250ml)
-        .replace(/-/g, ' ') // Replace hyphens with spaces (optional adjustment)
-        .replace(/\s{2,}/g, ' ') // Collapse multiple spaces to one
-        .trim(); // Remove leading/trailing spaces
-    }
-    await pinCode.dispatchEvent('click');
     // go to the main subcategory to get all of them one by one
     let filename;
     try {
       let categorySegment = page.url().split('.com')[1];
       const categoryNameElement = page
-        .locator(`a[href*="${categorySegment}"]`)
+        .locator(`div[id*='category'] div[style='color: var(--colors-black-900);']`)
         .first();
 
       // Ensure the element exists before accessing its text content
@@ -134,209 +125,138 @@ async function runJob(job, jobId, url, pincode) {
         console.log('Using fallback filename:', filename);
       }
     }
-    // await page.click('.category-list a:last-child');
-    // Use the filename variable outside the try-catch block
     console.log('Final Filename:', filename);
     job.attrs.data.progress = 5;
     await job.save();
     const allProducts = [];
-    let defaultUrl =
-      'https://blinkit.com/v1/listing/widgets?page=0&l0_cat=1487&l1_cat=742';
-    // go through each subcategory and get its data
+    let defaultUrl = 'https://blinkit.com/v1/layout/listing_widgets?l0_cat=16&l1_cat=505'
     const productMap = {};
     let requestUrl = '';
-
-    await page.route(/\/v1\/listing\/widgets\?.*/, (route) => {
-      if (requestUrl === '') {
-        requestUrl = route.request().url(); // Capture the URL
-        console.log(requestUrl); // Log the URL
-        if (Object.keys(headers).length === 0) {
-          headers = route.request().headers();
-          console.log('got headers from widgets tracker');
-        }
-        // log request headers
-        route.continue(); // Allow the request to proceed
-      } else {
-        route.continue(); // Allow the request to proceed
-      }
-    });
-
-    async function findTotalPages(url) {
-      console.log(`Finding total pages for URL: ${url}`);
-      let start = 0; // First page
-      let end = 1000; // Assume an initial maximum page count
-      let totalPages = 0;
-
-      while (start <= end) {
-        const mid = Math.floor((start + end) / 2);
-        const newUrl = url.replace(/page=\d+/, `page=${mid}`);
-        console.log(`Checking page ${mid} - URL: ${newUrl}`);
-
-        try {
-          const res = await page.evaluate(
-            async (obj) => {
-              try {
-                const response = await fetch(obj.url, {
-                  headers: obj.headers
-                });
-                const body = await response.json();
-                return {
-                  status: response.status,
-                  nextUrl: body.pagination.next_url || ''
-                };
-              } catch (error) {
-                console.error('Error during fetch in evaluate:', error);
-                return { status: 500, nextUrl: null };
-              }
-            },
-            { url: newUrl, headers }
-          );
-
-          if (res.status === 200) {
-            const nextPageMatch = res.nextUrl.match(/page=(\d+)/);
-            const nextPage = nextPageMatch
-              ? parseInt(nextPageMatch[1], 10)
-              : 0;
-            console.log(`Next page number: ${nextPage}`);
-            if (nextPage && nextPage < mid) {
-              // If next page number is lower than mid, we've found the last page
-              console.log(`Found the last page: ${nextPage}`);
-              totalPages = nextPage;
-              break;
-            } else if (nextPage && nextPage >= mid) {
-              // If next page number is higher or equal, search the upper half
-              start = mid + 1;
-            } else {
-              // If no next URL is present, this could be the last page
-              totalPages = mid;
-              break;
-            }
-          } else {
-            throw new Error(
-              `Failed to fetch page ${mid}, status: ${res.status}`
-            );
-          }
-        } catch (error) {
-          console.error(`Error fetching page ${mid}:`, error.message);
-          end = mid - 1; // Adjust the search range and continue
-        }
-      }
-
-      return totalPages;
-    }
-
-    const products = [];
-    if (requestUrl) {
-      // change page to be 0
-      requestUrl = requestUrl.replace(/page=\d+/, 'page=0');
-    } else {
+    const [request] = await Promise.all([
+      page.waitForRequest(/\/v1\/layout\/listing_widgets\?.*/), // Wait for the request
+      pinCode.dispatchEvent('click') // Trigger the request
+    ]);
+    requestUrl = request.url();
+    headers = request.headers();
+    // console.log("Request URL:", request.url());
+    // console.log("Headers:", request.headers());
+    if (!requestUrl){
       const url = page.url();
       const urlParts = url.split('/').filter(Boolean); // Removes empty strings from trailing slashes
       const l0 = urlParts[urlParts.length - 2];
       const l1 = urlParts[urlParts.length - 1];
       requestUrl = defaultUrl.replace('l0_cat=1487', `l0_cat=${l0}`);
       requestUrl = requestUrl.replace('l1_cat=742', `l1_cat=${l1}`);
-      requestUrl = requestUrl.replace(/page=\d+/, 'page=0');
       console.log(`fallback URL: ${requestUrl}`);
       console.log(`Current page url ${page.url()}`);
     }
-    const totalPages = await findTotalPages(requestUrl);
+    // const totalPages = await findTotalPages(requestUrl);
+    const products = [];
     let totalScrapped = 0;
-    for (let i = 1; i <= totalPages; i++) {
-      let res = await page.evaluate(
-        async (obj) => {
-          console.log('inside evaluate');
-          const response = await fetch(obj.url, {
-            headers: obj.headers
-          });
-          body = await response.json();
-          products = body['objects'];
-          nextUrl = body['pagination']['next_url'];
-          return {
-            status: response.status,
-            products: products,
-            nextUrl: nextUrl
-          };
-        },
-        {
-          url: requestUrl,
-          headers: headers
-        }
-      );
+    let postData = {};
+    while (true) {
+      let res;
+      try {
+        res = await page.evaluate(
+          async (obj) => {
+            console.log('inside evaluate');
+            const response = await fetch(obj.url, {
+              headers: obj.headers,
+              body: JSON.stringify(obj.postData),
+              method: 'POST',
+            });
+
+            const body = await response.json();
+            console.log(`data: ${JSON.stringify(body)}`);
+
+            const products = body?.response?.snippets ?? [];
+            const nextUrl = body?.response?.pagination?.next_url ?? null;
+            const postData = body?.postback_params ?? null;
+
+            return {
+              status: response.status,
+              products,
+              nextUrl,
+              postData,
+            };
+          },
+          {
+            url: requestUrl,
+            headers: headers,
+            postData: postData,
+          }
+        );
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // await page.waitForTimeout(1000 * 120);
+      }
+
       const status = res.status;
       if (status === 200) {
+        console.log(`data fetched with length: ${res.products.length} `)
         products.push(...res.products);
         totalScrapped = products.length;
         // log products length
         console.log(`Products Length: ${totalScrapped}`);
         //
-        const nextUrl = res.nextUrl;
-        job.attrs.data.total_products = allProducts.length;
-        job.attrs.data.progress = Math.floor((i / totalPages) * 100);
+        const nextUrl = res?.nextUrl;
+        postData = res.postData;
+        job.attrs.data.total_products = products.length;
         await job.save();
         console.log(`Next URL: ${nextUrl}`);
         if (nextUrl) {
           requestUrl = nextUrl;
         } else {
+          console.log('no nextUrl')
           break;
         }
+        // await page.waitForTimeout(1000 * 120);
         new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
     // based on the above json, transform to the descired schema like the one in scrapeBigBasked.js
+    //done getting from the api
+    console.log(`done from the api part`)
 
     for (const product of products) {
-      try {
-        // const mainInventory =
-        //   product?.tracking?.widget_meta?.custom_data?.inventory ??
-        //   product?.data?.product?.inventory;
-
-        let productName = product?.tracking?.widget_meta?.title || '';
+      try{
+        let productName = product?.tracking?.widget_meta?.widget_title || '';
         productName = cleanProductTitle(productName);
-        let imageUrl = '';
+        let imageUrl = product?.data?.image?.url;
 
         const variants = [];
-        const objects = product?.objects || [];
+        const objects = product?.data?.variant_list || [];
         for (const variant of objects) {
-          // const variantInventory =
-          //   variant?.tracking?.widget_meta?.custom_data?.inventory ??
-          //   variant?.data?.product?.inventory;
-          if (!imageUrl) {
-            imageUrl = cleanImageURL(variant.data.product.images[0]);
-          }
-
-          // if (variantInventory !== 0) {
+          console.log(`variant : ${Object.keys(variant)}`);
+          console.log(`variant data : ${Object.keys(variant.data)}`)
           variants.push({
-            quantity: variant?.data?.product?.unit || '',
-            mrp: variant?.data?.product?.mrp || 0,
-            price: variant?.data?.product?.price || 0,
-            articleId: variant?.data?.product?.product_id || null,
+            quantity: variant?.data?.variant?.text || '',
+            mrp: Number(cleanText(variant?.data?.mrp.text)) || 0,
+            price: Number(cleanText(variant?.data?.normal_price?.text)) || 0,
+            articleId: variant?.data?.identity?.id || null,
+            variantUrl: `https://blinkit.com${getProductLink(variant)}`
+          });
+        }
+        if (variants.length === 0) {
+
+          variants.push({
+            quantity: product?.data?.variant?.text || '',
+            mrp: Number(cleanText(product?.data?.mrp.text)) || 0,
+            price: Number(cleanText(product?.data?.normal_price?.text)) || 0,
+            articleId: product?.data?.identity?.id || null,
             variantUrl: `https://blinkit.com${getProductLink(product)}`
           });
-          // }
         }
-
         if (!variants.length) {
+          console.log(`No valid variants for ${productName}`);
           continue; // Skip product if no valid variants and main product inventory is 0
         }
 
         if (!productMap[productName]) {
           productMap[productName] = {
-            title: product?.tracking?.widget_meta?.title || '',
-            brand: product?.data?.product?.brand || '',
-            variant: variants.length
-              ? variants
-              : [
-                {
-                  quantity: product?.data?.product?.unit || '',
-                  mrp: product?.data?.product?.mrp || 0,
-                  price: product?.data?.product?.price || 0,
-                  articleId: String(product?.data?.product?.product_id),
-                  variantUrl: `https://blinkit.com${getProductLink(
-                    product
-                  )}`
-                }
-              ],
+            title: product?.tracking?.widget_meta?.widget_title || '',
+            brand: product?.data?.brand_name?.text || '',
+            variant: variants.length > 0 ? variants : [],
             imageUrl: imageUrl,
             url: `https://blinkit.com${getProductLink(product)}`,
             pincode: Number(pincode) || null
@@ -356,8 +276,9 @@ async function runJob(job, jobId, url, pincode) {
         console.error('Error processing product:', product, error.message);
       }
     }
+    console.log('after the normalization')
     allProducts.push(...Object.values(productMap));
-
+    console.table(allProducts)
     job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
     await job.save();
@@ -393,8 +314,8 @@ function getProductLink(product) {
     !product ||
     !product.tracking ||
     !product.tracking.widget_meta ||
-    !product.tracking.widget_meta.id ||
-    !product.tracking.widget_meta.title
+    !product.tracking.widget_meta.widget_id ||
+    !product.tracking.widget_meta.widget_title
   ) {
     throw new Error(
       "Product object must contain 'tracking.widget_meta.id' and 'tracking.widget_meta.title' properties."
@@ -415,14 +336,31 @@ function getProductLink(product) {
       .join('/');
   };
 
-  const formattedName = formatName(product.tracking.widget_meta.title);
+  const formattedName = formatName(product.tracking.widget_meta.widget_title);
 
   const url = constructUrl([
     '/prn',
     formattedName,
     'prid',
-    product.tracking.widget_meta.id
+    product.tracking.widget_meta.widget_id,
   ]);
 
   return url;
+}
+// remove non digit chars (except , .)
+function cleanText(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const cleanedText = text.replace(/[^0-9.,]/g, '');
+  return cleanedText;
+
+}
+function cleanProductTitle(title) {
+  return title
+    .replace(/[()]/g, '') // Remove parentheses but keep their content
+    .replace(/\d+\.?\d*\s*(kg|g|l|ml)\b/gi, '') // Remove weight/volume measurements (e.g., 10kg, 500g, 1.5l, 250ml)
+    .replace(/-/g, ' ') // Replace hyphens with spaces (optional adjustment)
+    .replace(/\s{2,}/g, ' ') // Collapse multiple spaces to one
+    .trim(); // Remove leading/trailing spaces
 }
