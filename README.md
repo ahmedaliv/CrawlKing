@@ -88,6 +88,7 @@
 
 - **JioMart**
 - **DMart** (Requires an Indian proxy/VPN)
+- **BLINKIT**
 
 ## Contributing
 
