@@ -67,8 +67,7 @@ async function handleJobFailureCase(job, error) {
   // Reschedule if max retries have not been reached
   if (job.attrs.data.failCount < MAX_RETRIES) {
     console.log(
-      `Retrying job for ${JSON.stringify(job.attrs.data)}, attempt ${
-        job.attrs.data.failCount
+      `Retrying job for ${JSON.stringify(job.attrs.data)}, attempt ${job.attrs.data.failCount
       }`
     );
     await job.schedule('in 10 seconds'); // Adjust retry time as needed
@@ -199,7 +198,9 @@ export function defineScrapeGroup(agenda) {
       // normalize the result of the successful child jobs
       const folderPath = path.join(__dirname, 'data', 'groups', jobId);
       await normalizeJobProducts(job, jobs, folderPath);
+      console.log(`path: ${folderPath}`)
       // run python code
+      console.log('starting matching')
       await runProductMatcher(folderPath);
       console.log('🎉 Matching completed!');
       // load the result from fs
@@ -214,7 +215,7 @@ export function defineScrapeGroup(agenda) {
       // last run (we fininshed)
       job.attrs.data.status = 'completed';
       await job.save();
-      console.log(`Scraping completed for ${{ urls, pincode }}`);
+      console.log(`Scraping completed for ${ urls, pincode }`);
       await handleJobRecurringStatus(job, type);
     } catch (error) {
       await handleJobFailureCase(job, error);
