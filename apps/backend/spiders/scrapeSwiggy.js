@@ -391,37 +391,37 @@ function sleep(ms) {
 }
 export async function main(job, jobId, url, pincode) {
   await sleep(5000);
-  return [
-    [
-      {
-        brand: 'Tata Sampann',
-        title: 'Tata Sampann Unpolished Masoor Dal',
-        variant: [
-          {
-            quantity: '500 g',
-            mrp: 83,
-            price: 77,
-            articleId: '9M2U5WPQTX',
-            variantUrl:
-              'https://www.swiggy.com/instamart/item/L3OG2A6TP8?storeId=1181692'
-          },
-          {
-            quantity: '1 kg',
-            mrp: 164,
-            price: 151,
-            articleId: 'PCPV2OG4Z0',
-            variantUrl:
-              'https://www.swiggy.com/instamart/item/6STIVRS77K?storeId=1181692'
-          }
-        ],
-        url: 'https://www.swiggy.com/instamart/item/L3OG2A6TP8?storeId=1181692',
-        imageUrl:
-          'https://instamart-media-assets.swiggy.com/swiggy/image/upload/fl_lossy,f_auto,q_auto,h_272,w_252/NI_CATALOG/IMAGES/CIW/2025/1/3/7a95b3af-076e-4b52-bb0f-8b6a3f7f86b0_2394_1.png',
-        pincode: 500074
-      }
-    ],
-    'swiggy'
-  ];
+  // return [
+  //   [
+  //     {
+  //       brand: 'Tata Sampann',
+  //       title: 'Tata Sampann Unpolished Masoor Dal',
+  //       variant: [
+  //         {
+  //           quantity: '500 g',
+  //           mrp: 83,
+  //           price: 77,
+  //           articleId: '9M2U5WPQTX',
+  //           variantUrl:
+  //             'https://www.swiggy.com/instamart/item/L3OG2A6TP8?storeId=1181692'
+  //         },
+  //         {
+  //           quantity: '1 kg',
+  //           mrp: 164,
+  //           price: 151,
+  //           articleId: 'PCPV2OG4Z0',
+  //           variantUrl:
+  //             'https://www.swiggy.com/instamart/item/6STIVRS77K?storeId=1181692'
+  //         }
+  //       ],
+  //       url: 'https://www.swiggy.com/instamart/item/L3OG2A6TP8?storeId=1181692',
+  //       imageUrl:
+  //         'https://instamart-media-assets.swiggy.com/swiggy/image/upload/fl_lossy,f_auto,q_auto,h_272,w_252/NI_CATALOG/IMAGES/CIW/2025/1/3/7a95b3af-076e-4b52-bb0f-8b6a3f7f86b0_2394_1.png',
+  //       pincode: 500074
+  //     }
+  //   ],
+  //   'swiggy'
+  // ];
   return await runJob(job, jobId, url, pincode);
 }
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
