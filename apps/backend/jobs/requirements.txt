@@ -1,0 +1,8 @@
+torch
+torchvision
+transformers
+scikit-learn
+numpy
+pillow
+pathlib
+hf_xet
