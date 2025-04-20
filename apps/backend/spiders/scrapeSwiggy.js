@@ -127,7 +127,11 @@ async function runJob(job, jobId, url, pincode) {
     }
     let categoryName = '';
     if (result.type === 'default_container_ux4') {
-      categoryName = await page.locator('div h1').textContent();
+      categoryName = await page
+        .locator(
+          'div.content > div:first-child >  div:first-child  div:last-child '
+        )
+        .textContent();
     } else {
       categoryName = await page.locator('div h1').textContent();
       console.log(`Category Name: ${categoryName}`);
