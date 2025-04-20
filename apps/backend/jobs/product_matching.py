@@ -17,21 +17,21 @@ def match_products(folder_path: str):
     # Setup paths
     log_dir = os.path.join(folder_path, "logs")
     os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, "product_matching.log")
+    # log_file_path = os.path.join(log_dir, "product_matching.log")
     json_path = os.path.join(folder_path, "normalizedProducts_with_paths.json")
     cached_features_path = os.path.join(folder_path, "cached_image_features.pkl")
     failed_files_path = os.path.join(folder_path, "failed_image_files.pkl")
     output_path = os.path.join(folder_path, "output.json")
 
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler(log_file_path)
-        ]
-    )
+    # # Setup logging
+    # logging.basicConfig(
+    #     level=logging.INFO,
+    #     format='%(asctime)s - %(levelname)s - %(message)s',
+    #     handlers=[
+    #         logging.StreamHandler(),
+    #         logging.FileHandler(log_file_path)
+    #     ]
+    # )
 
     logging.info("Starting the product matching process.")
 

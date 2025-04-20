@@ -8,9 +8,6 @@ import re
 import sys
 
 def process_images(folder_path):
-    # Set up logging (file only)
-    # logging.basicConfig(filename='image_download.log', level=logging.INFO, 
-    #                     format='%(asctime)s - %(levelname)s - %(message)s')
 
     OUTPUT_DIR = os.path.join(folder_path, "downloaded_images")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -94,7 +91,7 @@ def process_images(folder_path):
     OUTPUT_JSON_PATH = os.path.join(folder_path, "normalizedProducts_with_paths.json")
     with open(OUTPUT_JSON_PATH, 'w') as f:
         json.dump(products, f, indent=4)
-
+    logging.info(f"Download complete: {downloaded_count} images downloaded successfully, {failed_count} downloads failed out of {total_images} products.")
     print(f"Download complete. Updated JSON saved as {OUTPUT_JSON_PATH}. Check image_download.log for details.")
     return OUTPUT_JSON_PATH
 
