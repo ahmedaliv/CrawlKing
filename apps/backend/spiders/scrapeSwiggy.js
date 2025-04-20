@@ -336,6 +336,7 @@ async function runJob(job, jobId, url, pincode) {
             url: `https://www.swiggy.com/instamart/item/${
               product['product_id']
             }?storeId=${product['variations']?.[0]?.store_id || ''}`,
+            imageUrl: `https://instamart-media-assets.swiggy.com/swiggy/image/upload/fl_lossy,f_auto,q_auto,h_272,w_252/${product['variations']?.[0]?.['images']?.[0]}`,
             pincode: Number(pincode)
           };
         }
@@ -390,7 +391,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 export async function main(job, jobId, url, pincode) {
-  await sleep(5000);
+  // await sleep(5000);
   // return [
   //   [
   //     {

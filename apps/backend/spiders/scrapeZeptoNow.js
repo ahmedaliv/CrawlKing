@@ -88,7 +88,7 @@ async function runJob(job, jobId, url, pincode) {
       (route) => {
         if (requestUrl === '') {
           requestUrl = route.request().url();
-          console.log(requestUrl);
+          // console.log(requestUrl);
           // console.log(`Headers: ${JSON.stringify(route.request().headers())}`);
           headers = route.request().headers();
           route.continue();
@@ -188,7 +188,7 @@ async function runJob(job, jobId, url, pincode) {
       requestUrl = requestUrl.replace(/page_number=\d+/, `page_number=${1}`);
       // add page_size to be 100
       requestUrl = requestUrl + `&page_size=100`;
-      console.log(requestUrl);
+      // console.log(requestUrl);
 
       await job.save();
       const products = [];
@@ -403,7 +403,7 @@ async function runJob(job, jobId, url, pincode) {
     return [allProducts, filename];
     // await page.waitForSelector("section ul li[class*='PaginateItems']");
   } catch (error) {
-    console.log(`Job ${jobId} failed with error: ${error.message}`);
+    console.error(`Job ${jobId} failed with error: ${error.message}`);
     return [[], null];
   } finally {
     await browser.close();

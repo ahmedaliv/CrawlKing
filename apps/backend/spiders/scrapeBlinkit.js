@@ -169,7 +169,6 @@ async function runJob(job, jobId, url, pincode) {
             });
 
             const body = await response.json();
-            console.log(`data: ${JSON.stringify(body)}`);
 
             const products = body?.response?.snippets ?? [];
             const nextUrl = body?.response?.pagination?.next_url ?? null;
@@ -229,8 +228,6 @@ async function runJob(job, jobId, url, pincode) {
         const variants = [];
         const objects = product?.data?.variant_list || [];
         for (const variant of objects) {
-          console.log(`variant : ${Object.keys(variant)}`);
-          console.log(`variant data : ${Object.keys(variant.data)}`)
           variants.push({
             quantity: variant?.data?.variant?.text || '',
             mrp: Number(cleanText(variant?.data?.mrp.text)) || 0,
@@ -243,7 +240,7 @@ async function runJob(job, jobId, url, pincode) {
 
           variants.push({
             quantity: product?.data?.variant?.text || '',
-            mrp: Number(cleanText(product?.data?.mrp.text)) || 0,
+            mrp: Number(cleanText(product?.data?.mrp?.text)) || 0,
             price: Number(cleanText(product?.data?.normal_price?.text)) || 0,
             articleId: product?.data?.identity?.id || null,
             variantUrl: `https://blinkit.com${getProductLink(product)}`

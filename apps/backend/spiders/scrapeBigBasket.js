@@ -244,7 +244,8 @@ async function runJob(job, jobId, url, pincode) {
               quantity: product.w, // "500 ml"
               mrp: product.pricing.discount.mrp, // "105"
               price: product.pricing.discount.prim_price.sp, // "83.78"
-              articleId: product.id // "40141960"
+              articleId: product.id, // "40141960"
+              variantUrl: `https://www.bigbasket.com${product.absolute_url}` // "https://www.bigbasket.com/pd/40141960/mr-gold-nakshatra-pooja-oil-500-ml/"
             },
             // Variants
             ...product.children.map((variant) => {
@@ -252,7 +253,8 @@ async function runJob(job, jobId, url, pincode) {
                 quantity: variant.w, // "1 L"
                 mrp: variant.pricing.discount.mrp, // "200"
                 price: variant.pricing.discount.prim_price.sp, // "170.8"
-                articleId: variant.id // "40141959"
+                articleId: variant.id,
+                variantUrl: `https://www.bigbasket.com${variant.absolute_url}` // "https://www.bigbasket.com/pd/40141960/mr-gold-nakshatra-pooja-oil-1-l/"
               };
             })
           ],
