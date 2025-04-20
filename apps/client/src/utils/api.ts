@@ -1,5 +1,6 @@
 import { apiPrefix, client } from './client';
 import {
+  GroupJob,
   Job,
   RetryJobResponse,
   StopJobResponse,
@@ -12,6 +13,23 @@ import { JobProgressResponse } from './types';
 export const deleteAllJobs = async () => {
   try {
     const response = await fetch(`${apiPrefix}/jobs`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+      }
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete all jobs');
+    }
+  } catch (error) {
+    console.error('Error deleting all jobs:', error);
+    // throw error;
+  }
+};
+
+export const deleteAllGroupJobs = async () => {
+  try {
+    const response = await fetch(`${apiPrefix}/jobs/groups`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token') || ''}`
@@ -38,6 +56,26 @@ export const fetchJobs = async (): Promise<Job[]> => {
     }
 
     return (await response.json()) as Job[];
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    return [];
+    // throw error;
+  }
+};
+
+export const fetchGroupJobs = async (): Promise<GroupJob[]> => {
+  try {
+    const response = await fetch(`${apiPrefix}/jobs/groups`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch jobs: ${response.statusText}`);
+    }
+
+    return (await response.json()) as GroupJob[];
   } catch (error) {
     console.error('Error fetching jobs:', error);
     return [];

@@ -1,3 +1,5 @@
 node_modules/
 apps/backend/spiders/scrapeDmartv2.js
 TODO.md
+
+**/__pycache__/**

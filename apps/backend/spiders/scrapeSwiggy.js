@@ -7,7 +7,7 @@ chromium.use(stealth());
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
-    headless: true,
+    headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
     args: [
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
@@ -16,7 +16,7 @@ async function runJob(job, jobId, url, pincode) {
       '--disable-extensions',
       '--disable-infobars',
       '--mute-audio',
-      '--disable-background-networking',
+      '--disable-background-networking'
     ]
   });
 
@@ -30,7 +30,9 @@ async function runJob(job, jobId, url, pincode) {
   });
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en']
+    });
     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
 
     // Spoof WebRTC
@@ -131,9 +133,7 @@ async function runJob(job, jobId, url, pincode) {
         )
         .textContent();
     } else {
-      categoryName = await page
-        .locator('div h1')
-        .textContent();
+      categoryName = await page.locator('div h1').textContent();
       console.log(`Category Name: ${categoryName}`);
     }
     // Format the category name
@@ -234,7 +234,8 @@ async function runJob(job, jobId, url, pincode) {
             });
           }
 
-          const randomDelay = () => Math.floor(Math.random() * (5000 - 2000) + 2000); // 2-5 sec
+          const randomDelay = () =>
+            Math.floor(Math.random() * (5000 - 2000) + 2000); // 2-5 sec
 
           await page.waitForTimeout(randomDelay());
           if (res.status() === 200) {
@@ -301,7 +302,7 @@ async function runJob(job, jobId, url, pincode) {
           } else {
             milestoneData =
               data['data']['widgets'][data['data']['widgets'].length - 1][
-              'data'
+                'data'
               ];
           }
           console.log(
@@ -322,7 +323,6 @@ async function runJob(job, jobId, url, pincode) {
       }
       console.log(`Total Products: ${products.length}`);
 
-
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
         const key = `${product['brand_id']}-${product['display_name']}`;
@@ -333,8 +333,9 @@ async function runJob(job, jobId, url, pincode) {
             title: product['display_name'],
             variant: [],
             articleIds: new Set(), // Track added article IDs
-            url: `https://www.swiggy.com/instamart/item/${product['product_id']
-              }?storeId=${product['variations']?.[0]?.store_id || ''}`,
+            url: `https://www.swiggy.com/instamart/item/${
+              product['product_id']
+            }?storeId=${product['variations']?.[0]?.store_id || ''}`,
             pincode: Number(pincode)
           };
         }
@@ -346,8 +347,9 @@ async function runJob(job, jobId, url, pincode) {
               mrp: variant['price']['mrp'],
               price: variant['price']['offer_price'],
               articleId: variant['id'],
-              variantUrl: `https://www.swiggy.com/instamart/item/${product['product_id']
-                }?storeId=${product['variations']?.[0]?.store_id || ''}`,
+              variantUrl: `https://www.swiggy.com/instamart/item/${
+                product['product_id']
+              }?storeId=${product['variations']?.[0]?.store_id || ''}`
             });
             productMap[key].articleIds.add(variant['id']);
           }
@@ -368,11 +370,9 @@ async function runJob(job, jobId, url, pincode) {
 
       allProducts.push(...curProducts);
     } else {
-      console.log(
-        `failed to send the request, check the url for subCat ${i}`
-      );
+      console.log(`failed to send the request, check the url for subCat ${i}`);
     }
-    await page.waitForTimeout(15000)
+    await page.waitForTimeout(15000);
     // }
     job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
@@ -386,7 +386,42 @@ async function runJob(job, jobId, url, pincode) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 export async function main(job, jobId, url, pincode) {
+  await sleep(5000);
+  // return [
+  //   [
+  //     {
+  //       brand: 'Tata Sampann',
+  //       title: 'Tata Sampann Unpolished Masoor Dal',
+  //       variant: [
+  //         {
+  //           quantity: '500 g',
+  //           mrp: 83,
+  //           price: 77,
+  //           articleId: '9M2U5WPQTX',
+  //           variantUrl:
+  //             'https://www.swiggy.com/instamart/item/L3OG2A6TP8?storeId=1181692'
+  //         },
+  //         {
+  //           quantity: '1 kg',
+  //           mrp: 164,
+  //           price: 151,
+  //           articleId: 'PCPV2OG4Z0',
+  //           variantUrl:
+  //             'https://www.swiggy.com/instamart/item/6STIVRS77K?storeId=1181692'
+  //         }
+  //       ],
+  //       url: 'https://www.swiggy.com/instamart/item/L3OG2A6TP8?storeId=1181692',
+  //       imageUrl:
+  //         'https://instamart-media-assets.swiggy.com/swiggy/image/upload/fl_lossy,f_auto,q_auto,h_272,w_252/NI_CATALOG/IMAGES/CIW/2025/1/3/7a95b3af-076e-4b52-bb0f-8b6a3f7f86b0_2394_1.png',
+  //       pincode: 500074
+  //     }
+  //   ],
+  //   'swiggy'
+  // ];
   return await runJob(job, jobId, url, pincode);
 }
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

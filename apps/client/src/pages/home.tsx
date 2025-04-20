@@ -51,7 +51,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { format } from 'date-fns';
-import { CalendarIcon, LogOut } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -69,8 +69,56 @@ const formSchema = z.object({
 
 type FormSchemaType = z.infer<typeof formSchema>;
 
-export function Home() {
+function NewJobForm() {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [hasConnectionError, setHasConnectionError] = useState(false);
+  const [previousStatus, setPreviousStatus] = useState<string | null>(null);
+  const [jobType, setJobType] = useState(() => localStorage.getItem('jobType'));
+  let jobId = localStorage.getItem('jobId') || null;
+  const onDownloadClick = () => {
+    const jobId = submitMutation?.data?.jobId;
+    if (jobId) {
+      exportJob(jobId, toast);
+    }
+  };
+  const stopMutation = useMutation({
+    mutationFn: async () => {
+      const res = await client.post('jobs/stop', {
+        json: {
+          jobId: localStorage.getItem('jobId')
+        },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}` || ''
+        }
+      });
+      return (await res.json()) as { jobId: string };
+    },
+    onSuccess: () => {
+      localStorage.removeItem('jobId');
+      jobId = null;
+    }
+  });
+  const retryJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await fetch(`${apiPrefix}/jobs/retry/${jobId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      return (await response.json()) as { message: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: FETCH_JOBS_QUERY });
+    }
+  });
+  const handleUnauthorizedError = () => {
+    navigate('/login');
+    localStorage.removeItem('token');
+    localStorage.removeItem('jobId');
+  };
   const form = useForm<FormSchemaType>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -83,13 +131,7 @@ export function Home() {
       repeatInterval: 'daily'
     }
   });
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const handleUnauthorizedError = () => {
-    navigate('/login');
-    localStorage.removeItem('token');
-    localStorage.removeItem('jobId');
-  };
+
   const submitMutation = useMutation({
     mutationFn: async ({
       site,
@@ -177,48 +219,6 @@ export function Home() {
       }
     }
   });
-  const onDownloadClick = () => {
-    const jobId = submitMutation?.data?.jobId;
-    if (jobId) {
-      exportJob(jobId, toast);
-    }
-  };
-  const stopMutation = useMutation({
-    mutationFn: async () => {
-      const res = await client.post('jobs/stop', {
-        json: {
-          jobId: localStorage.getItem('jobId')
-        },
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}` || ''
-        }
-      });
-      return (await res.json()) as { jobId: string };
-    },
-    onSuccess: () => {
-      localStorage.removeItem('jobId');
-      jobId = null;
-    }
-  });
-  const retryJobMutation = useMutation({
-    mutationFn: async (jobId: string) => {
-      const response = await fetch(`${apiPrefix}/jobs/retry/${jobId}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
-      return (await response.json()) as { message: string };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: FETCH_JOBS_QUERY });
-    }
-  });
-
-  let jobId = localStorage.getItem('jobId') || null;
-  const [jobType, setJobType] = useState(() => localStorage.getItem('jobType'));
-  const [hasConnectionError, setHasConnectionError] = useState(false);
-  const [previousStatus, setPreviousStatus] = useState<string | null>(null);
 
   const progressQuery = useQuery({
     retry: (failureCount, error) => {
@@ -286,17 +286,6 @@ export function Home() {
   const isScrappingDone = progressQuery?.data?.status === 'completed';
   let isFailed = progressQuery?.data?.status === 'failed';
   const isExportDisabled = !isScrappingDone;
-  const handleLogout = () => {
-    // Clear token and jobId from localStorage
-    localStorage.removeItem('token');
-    localStorage.removeItem('jobId');
-
-    // Optionally reset query client or state if needed
-    queryClient.clear();
-
-    // Redirect to login or home page
-    navigate('/login'); // Adjust the path as needed
-  };
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.storageArea === localStorage) {
@@ -328,32 +317,35 @@ export function Home() {
   const isRecurring = form.watch('recurring');
   const isImmediate = form.watch('immediate');
   return (
-    <div className="flex size-full w-full flex-col">
-      <div className="h-10 w-full ">
-        <Button
-          variant={'ghost'}
-          onClick={handleLogout}
-          className="absolute right-4 top-0"
-          size={'sm'}
-        >
-          <LogOut size={18} />
-        </Button>
-      </div>
-      <div className="flex size-full flex-col gap-10 px-10 pt-7 sm:px-14 md:flex-row md:justify-between md:gap-20 md:px-12 lg:px-24">
-        <div className="flex md:w-2/5 lg:w-1/3">
-          <Form {...form}>
-            <form
-              className="flex w-full flex-col gap-4"
-              onSubmit={form.handleSubmit(onSubmit)}
-            >
-              <div className="">
+    <div className="flex size-full flex-col gap-10 px-10 pt-7 sm:px-14 md:flex-row md:justify-between md:gap-20 md:px-12 lg:px-24">
+      <div className="flex md:w-2/5 lg:w-1/3">
+        <Form {...form}>
+          <form
+            className="flex w-full flex-col gap-4"
+            onSubmit={form.handleSubmit(onSubmit)}
+          >
+            <div className="">
+              <div>
+                <FormField
+                  control={form.control}
+                  name="site"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Site</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div>
                   <FormField
                     control={form.control}
-                    name="site"
+                    name="pincode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Site</FormLabel>
+                        <FormLabel>Zip Code</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
@@ -361,313 +353,295 @@ export function Home() {
                       </FormItem>
                     )}
                   />
-                  <div>
-                    <FormField
-                      control={form.control}
-                      name="pincode"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Zip Code</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="flex justify-center">
-                    <FormField
-                      control={form.control}
-                      name="immediate"
-                      render={({ field }) => (
-                        <FormItem className="py-2">
-                          <FormLabel>Immediate</FormLabel>
-                          <FormControl>
-                            <Checkbox
-                              className="mx-3"
-                              checked={field.value}
-                              onCheckedChange={(checked) => {
-                                form.setValue('immediate', checked as boolean);
-                                form.setValue(
-                                  'scheduled',
-                                  !(checked as boolean)
-                                );
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="scheduled"
-                      render={({ field }) => (
-                        <FormItem className="py-2">
-                          <FormLabel>Scheduled</FormLabel>
-                          <FormControl>
-                            <Checkbox
-                              className="mx-3"
-                              checked={field.value}
-                              onCheckedChange={(checked) => {
-                                form.setValue('scheduled', checked as boolean);
-                                form.setValue(
-                                  'immediate',
-                                  !(checked as boolean)
-                                );
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  {isScheduled && (
-                    <div className="flex flex-col gap-2">
-                      <FormField
-                        control={form.control}
-                        name="dateTime"
-                        render={({ field }) => (
-                          <FormItem className="py-1">
-                            <FormLabel className="text-left">
-                              DateTime
-                            </FormLabel>
-                            <Popover>
-                              <FormControl>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    className={cn(
-                                      'w-[280px] justify-start text-left font-normal',
-                                      !field.value && 'text-muted-foreground'
-                                    )}
-                                  >
-                                    <CalendarIcon className="mr-2 size-4" />
-                                    {field.value ? (
-                                      format(field.value, 'PPP HH:mm:ss')
-                                    ) : (
-                                      <span>Pick a date</span>
-                                    )}
-                                  </Button>
-                                </PopoverTrigger>
-                              </FormControl>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  initialFocus
-                                />
-                                <div className="border p-3">
-                                  <TimePickerDemo
-                                    setDate={field.onChange}
-                                    date={field.value}
-                                  />
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="recurring"
-                        render={({ field }) => (
-                          <FormItem className="m-auto pb-2">
-                            <FormLabel>Recurring</FormLabel>
-                            <FormControl>
-                              <Checkbox
-                                className="m-2"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      {isRecurring && (
-                        <FormField
-                          control={form.control}
-                          name="repeatInterval"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Repeat Interval</FormLabel>
-                              <Select
-                                onValueChange={field.onChange}
-                                defaultValue="daily"
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="daily">Daily</SelectItem>
-                                  <SelectItem value="weekly">Weekly</SelectItem>
-                                  <SelectItem value="monthly">
-                                    Monthly
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                    </div>
-                  )}
                 </div>
-                <div className="flex flex-row justify-around pt-4">
-                  {!jobId || !isImmediate ? (
-                    <>
-                      <Button type="submit">Scrape</Button>
-                    </>
-                  ) : (
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button>Scrape</Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>
-                            {isScrapingInProgress
-                              ? 'Scraping in progress'
-                              : 'Starting a new scrape will delete the previous data'}{' '}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <DialogDescription asChild>
-                          <div className="flex flex-col gap-2">
-                            <div>
-                              {isScrapingInProgress
-                                ? "Are you sure you want to start a new scraping request, this will stop the current request and you won't be able to retrieve it's data"
-                                : 'Starting a new scrape will delete the previous data. Are you sure you want to continue?'}
-                            </div>
-                            <div className="flex w-full gap-4">
-                              <DialogClose asChild>
-                                <Button
-                                  onClick={async () => {
-                                    await queryClient.invalidateQueries({
-                                      queryKey: FETCH_JOBS_QUERY
-                                    });
-                                    localStorage.removeItem('jobId');
-                                    await queryClient.resetQueries({
-                                      queryKey: ['progress']
-                                    });
-                                    if (isImmediate) {
-                                      console.log('stopping job');
-                                      await client.post('jobs/stop', {
-                                        json: {
-                                          jobId: jobId
-                                        },
-                                        headers: {
-                                          Authorization:
-                                            `Bearer ${localStorage.getItem(
-                                              'token'
-                                            )}` || ''
-                                        }
-                                      });
-                                    }
-                                    submitMutation.mutate(
-                                      form.getValues() as FormSchemaType
-                                    );
-                                  }}
-                                >
-                                  Yes I'm sure
-                                </Button>
-                              </DialogClose>
-                              <DialogClose asChild>
-                                <Button>I've changed my mind</Button>
-                              </DialogClose>
-                            </div>
-                          </div>
-                        </DialogDescription>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                  <Button
-                    type="button"
-                    disabled={!isScrapingInProgress}
-                    onClick={() => {
-                      stopMutation.mutate();
-                    }}
-                  >
-                    Stop
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </Form>
-        </div>
-        <div className="flex size-full flex-col space-y-4 pb-10 md:h-1/2">
-          <div className="flex items-center justify-between gap-5">
-            <h2>Results</h2>
-            {isFailed ? (
-              <Button
-                type="button"
-                onClick={() => {
-                  if (jobId) {
-                    retryJobMutation.mutate(jobId);
-                  }
-                }}
-              >
-                Retry
-              </Button>
-            ) : (
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      className={clsx({
-                        'opacity-50 pointer-events-none cursor-not-allowed':
-                          isExportDisabled
-                      })}
-                      onClick={onDownloadClick}
-                    >
-                      Export
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <span>
-                      {isExportDisabled
-                        ? 'Export is disabled until scraping is initaited and completed'
-                        : 'Download the scraped data'}
-                    </span>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
-          <div className="size-full  px-3 py-6">
-            {(isScrapingInProgress || isScrappingDone || isFailed) && (
-              <div className="my-auto flex size-full flex-col space-y-5 p-4">
-                <span className="space-x-2">
-                  {' '}
-                  <Label className="font-bold">Status: </Label>{' '}
-                  <Badge>
-                    {progressQuery?.data?.status.toLocaleUpperCase()}{' '}
-                  </Badge>
-                </span>
-                <div>
-                  <Progress
-                    value={
-                      progressQuery?.data?.status == 'completed'
-                        ? 100
-                        : progressQuery?.data?.progress ?? 0
-                    }
+                <div className="flex justify-center">
+                  <FormField
+                    control={form.control}
+                    name="immediate"
+                    render={({ field }) => (
+                      <FormItem className="py-2">
+                        <FormLabel>Immediate</FormLabel>
+                        <FormControl>
+                          <Checkbox
+                            className="mx-3"
+                            checked={field.value}
+                            onCheckedChange={(checked) => {
+                              form.setValue('immediate', checked as boolean);
+                              form.setValue('scheduled', !(checked as boolean));
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="scheduled"
+                    render={({ field }) => (
+                      <FormItem className="py-2">
+                        <FormLabel>Scheduled</FormLabel>
+                        <FormControl>
+                          <Checkbox
+                            className="mx-3"
+                            checked={field.value}
+                            onCheckedChange={(checked) => {
+                              form.setValue('scheduled', checked as boolean);
+                              form.setValue('immediate', !(checked as boolean));
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
-                <span className="space-x-2">
-                  <Label className="font-bold">Items Scraped So Far: </Label>{' '}
-                  <Badge>{progressQuery?.data?.totalProducts}</Badge>
-                </span>
+                {isScheduled && (
+                  <div className="flex flex-col gap-2">
+                    <FormField
+                      control={form.control}
+                      name="dateTime"
+                      render={({ field }) => (
+                        <FormItem className="py-1">
+                          <FormLabel className="text-left">DateTime</FormLabel>
+                          <Popover>
+                            <FormControl>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    'w-[280px] justify-start text-left font-normal',
+                                    !field.value && 'text-muted-foreground'
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 size-4" />
+                                  {field.value ? (
+                                    format(field.value, 'PPP HH:mm:ss')
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                            </FormControl>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                initialFocus
+                              />
+                              <div className="border p-3">
+                                <TimePickerDemo
+                                  setDate={field.onChange}
+                                  date={field.value}
+                                />
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="recurring"
+                      render={({ field }) => (
+                        <FormItem className="m-auto pb-2">
+                          <FormLabel>Recurring</FormLabel>
+                          <FormControl>
+                            <Checkbox
+                              className="m-2"
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {isRecurring && (
+                      <FormField
+                        control={form.control}
+                        name="repeatInterval"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Repeat Interval</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue="daily"
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="daily">Daily</SelectItem>
+                                <SelectItem value="weekly">Weekly</SelectItem>
+                                <SelectItem value="monthly">Monthly</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+              <div className="flex flex-row justify-around pt-4">
+                {!jobId || !isImmediate ? (
+                  <>
+                    <Button type="submit">Scrape</Button>
+                  </>
+                ) : (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button>Scrape</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>
+                          {isScrapingInProgress
+                            ? 'Scraping in progress'
+                            : 'Starting a new scrape will delete the previous data'}{' '}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <DialogDescription asChild>
+                        <div className="flex flex-col gap-2">
+                          <div>
+                            {isScrapingInProgress
+                              ? "Are you sure you want to start a new scraping request, this will stop the current request and you won't be able to retrieve it's data"
+                              : 'Starting a new scrape will delete the previous data. Are you sure you want to continue?'}
+                          </div>
+                          <div className="flex w-full gap-4">
+                            <DialogClose asChild>
+                              <Button
+                                onClick={async () => {
+                                  await queryClient.invalidateQueries({
+                                    queryKey: FETCH_JOBS_QUERY
+                                  });
+                                  localStorage.removeItem('jobId');
+                                  await queryClient.resetQueries({
+                                    queryKey: ['progress']
+                                  });
+                                  if (isImmediate) {
+                                    console.log('stopping job');
+                                    await client.post('jobs/stop', {
+                                      json: {
+                                        jobId: jobId
+                                      },
+                                      headers: {
+                                        Authorization:
+                                          `Bearer ${localStorage.getItem(
+                                            'token'
+                                          )}` || ''
+                                      }
+                                    });
+                                  }
+                                  submitMutation.mutate(
+                                    form.getValues() as FormSchemaType
+                                  );
+                                }}
+                              >
+                                Yes I&apos;m sure
+                              </Button>
+                            </DialogClose>
+                            <DialogClose asChild>
+                              <Button>I&apos;ve changed my mind</Button>
+                            </DialogClose>
+                          </div>
+                        </div>
+                      </DialogDescription>
+                    </DialogContent>
+                  </Dialog>
+                )}
+                <Button
+                  type="button"
+                  disabled={!isScrapingInProgress}
+                  onClick={() => {
+                    stopMutation.mutate();
+                  }}
+                >
+                  Stop
+                </Button>
+              </div>
+            </div>
+          </form>
+        </Form>
+      </div>
+      <div className="flex size-full flex-col space-y-4 pb-10 md:h-1/2">
+        <div className="flex items-center justify-between gap-5">
+          <h2>Results</h2>
+          {isFailed ? (
+            <Button
+              type="button"
+              onClick={() => {
+                if (jobId) {
+                  retryJobMutation.mutate(jobId);
+                }
+              }}
+            >
+              Retry
+            </Button>
+          ) : (
+            <TooltipProvider delayDuration={100}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className={clsx({
+                      'opacity-50 pointer-events-none cursor-not-allowed':
+                        isExportDisabled
+                    })}
+                    onClick={onDownloadClick}
+                  >
+                    Export
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <span>
+                    {isExportDisabled
+                      ? 'Export is disabled until scraping is initaited and completed'
+                      : 'Download the scraped data'}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+        <div className="size-full  px-3 py-6">
+          {(isScrapingInProgress || isScrappingDone || isFailed) && (
+            <div className="my-auto flex size-full flex-col space-y-5 p-4">
+              <span className="space-x-2">
+                {' '}
+                <Label className="font-bold">Status: </Label>{' '}
+                <Badge>
+                  {progressQuery?.data?.status.toLocaleUpperCase()}{' '}
+                </Badge>
+              </span>
+              <div>
+                <Progress
+                  value={
+                    progressQuery?.data?.status == 'completed'
+                      ? 100
+                      : progressQuery?.data?.progress ?? 0
+                  }
+                />
+              </div>
+              <span className="space-x-2">
+                <Label className="font-bold">Items Scraped So Far: </Label>{' '}
+                <Badge>{progressQuery?.data?.totalProducts}</Badge>
+              </span>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
 
+export function Home() {
+  return (
+    <div className="flex size-full w-full flex-col">
+      <NewJobForm />
       <div className="flex size-full flex-col gap-10 px-10 pt-7 sm:px-14 md:flex-row md:justify-between md:gap-20 md:px-12 lg:px-24">
         <div className="flex w-full">
           <DataTable />

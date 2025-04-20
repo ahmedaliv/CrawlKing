@@ -1,13 +1,15 @@
 import { createRoot } from 'react-dom/client';
 import './styles/global.css';
 import { Home } from './pages/home';
+import { ScrapeGroup } from './pages/scrapeGroup';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Login from './pages/login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { NonProtectedRoute } from './components/NonProtectedRoute';
 import { Toaster } from '@/components/ui/toaster';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { Layout } from './components/layout';
+// import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 const container = document.getElementById('root') as HTMLDivElement;
 const root = createRoot(container);
@@ -15,13 +17,24 @@ const queryClient = new QueryClient();
 
 const router = createBrowserRouter([
   {
-    path: '/',
+    path: '',
     element: (
       <ProtectedRoute>
-        <Home />
+        <Layout />
       </ProtectedRoute>
     ),
-    errorElement: <div>Not Found</div>
+    errorElement: <div>Not Found</div>,
+    children: [
+      {
+        path: '/',
+        element: <Home />
+      },
+      {
+        path: '/group',
+        element: <ScrapeGroup />,
+        errorElement: <div>Not Found</div>
+      }
+    ]
   },
   {
     path: '/login',
