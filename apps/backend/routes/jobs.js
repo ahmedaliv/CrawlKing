@@ -291,7 +291,7 @@ router.delete('/groups', async (req, res) => {
     const removedJobs = await agenda.cancel({ name: 'scrape group' });
     await agenda.cancel({
       name: 'scrape job',
-      'data.forGroup': { $e: true }
+      'data.forGroup': { $eq: true }
     });
     // Remove all associated scrape data from MongoDB
     await ScrapeData.deleteMany({});
