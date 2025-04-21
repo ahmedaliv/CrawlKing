@@ -1,21 +1,14 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Create virtualenv only if it doesn't exist
-if [ ! -d "venv" ]; then
-  echo "Creating Python virtual environment..."
-  python3 -m venv venv
-fi
+echo "Creating virtual environment in $SCRIPT_DIR/venv"
+python3 -m venv "$SCRIPT_DIR/venv"
 
-# Activate the virtual environment
-source ./venv/bin/activate
+echo "Activating virtual environment and installing packages"
+source "$SCRIPT_DIR/venv/bin/activate" && \
+pip install --upgrade pip && \
+pip install torch torchvision transformers scikit-learn numpy pillow pathlib
 
-# Upgrade pip
-pip install --upgrade pip
-
-# Install required packages (using a requirements.txt is more stable)
-pip install torch torchvision transformers scikit-learn numpy pillow pathlib hf_xet
-
-echo "Python environment is ready ✅"
+echo "Python environment setup complete in $SCRIPT_DIR/venv"
