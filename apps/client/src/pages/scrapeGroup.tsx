@@ -59,10 +59,15 @@ import { useEffect, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-
+import { v4 as uuidv4 } from 'uuid'; // For generating unique IDs
 const formSchema = z.object({
   name: z.string().min(1, { message: 'Name is required.' }),
-  sites: z.array(z.string().url({ message: 'Invalid URL.' })),
+  sites: z.array(
+    z.object({
+      id: z.string(), // Unique identifier for each site
+      url: z.string().url({ message: 'Invalid URL.' }) // The URL string
+    })
+  ),
   pincode: z.string().min(1, { message: 'Zip Code is required.' }),
   dateTime: z.date(),
   immediate: z.boolean(),
@@ -145,7 +150,7 @@ function NewGroupJobForm() {
 
   const handleAddUrl = () => {
     if (newUrl && newUrl.trim()) {
-      append(newUrl.trim());
+      append({ id: uuidv4(), url: newUrl.trim() }); // Append an object with id and url
       setNewUrl('');
     }
   };
@@ -168,7 +173,7 @@ function NewGroupJobForm() {
         repeatInterval?: string;
       } = {
         name,
-        urls: sites,
+        urls: sites.map(site => site.url),
         pincode: pincode
       };
       if (scheduled) {
@@ -282,12 +287,12 @@ function NewGroupJobForm() {
       }
       const json = (await res.json()) as {
         status:
-          | 'running-scraping'
-          | 'running-matching'
-          | 'completed'
-          | 'cancelled'
-          | 'failed'
-          | 'unknown';
+        | 'running-scraping'
+        | 'running-matching'
+        | 'completed'
+        | 'cancelled'
+        | 'failed'
+        | 'unknown';
       };
       if (json.status !== previousStatus) {
         setPreviousStatus(json.status);
@@ -401,13 +406,13 @@ function NewGroupJobForm() {
                         {/* List of URLs */}
                         {field.value && field.value.length > 0 ? (
                           <div className="space-y-2">
-                            {field.value.map((url, index) => (
+                            {field.value.map((site, index) => (
                               <div
                                 key={index}
                                 className="flex items-center gap-2 bg-muted/50 p-2 rounded-md"
                               >
                                 <span className="text-sm flex-1 break-all">
-                                  {url}
+                                  {site.url}
                                 </span>
                                 <Button
                                   type="button"
