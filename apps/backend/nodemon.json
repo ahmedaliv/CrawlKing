@@ -1,0 +1,6 @@
+{
+  "ignore": [
+    "jobs/data/**",
+    "jobs/data/*"
+  ]
+}

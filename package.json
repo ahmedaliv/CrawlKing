@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"cd ./apps/backend && pnpm dev\"  \"cd ./apps/client && pnpm dev\" "
+    "dev": "concurrently \"cd ./apps/backend && pnpm dev\"  \"cd ./apps/client && pnpm dev\" ",
+    "backend": "pnpm --filter backend dev",
+    "client": "pnpm --filter client dev"
   },
   "keywords": [],
   "author": "",

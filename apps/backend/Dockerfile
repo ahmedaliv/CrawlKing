@@ -1,27 +1,31 @@
-# Use the official Node.js image as a base image
+# Base image with Python and Node.js
 FROM node:18
 
-# Set the working directory inside the container
+# Install Python and required packages
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip python3-venv && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working dir
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json (if available) to the working directory
+# Copy package files & install deps
 COPY package*.json ./
- 
-# Install pnpm
 RUN npm install -g pnpm
-
-# Install the project dependencies (with no cache)
 RUN pnpm install
 
-# Install Playwright and its dependencies (with no cache)
+# Install Playwright deps
 RUN pnpm exec playwright install-deps
 RUN pnpm exec playwright install
 
-# Copy the rest of the project files into the container
+# Copy all project files
 COPY . .
 
-# Expose the port that the app runs on 
+# Run Python setup
+RUN chmod +x ./jobs/setupPy.sh && ./jobs/setupPy.sh
+
+# Expose port
 EXPOSE 3000
 
-# Define the command to run the app
+# Start app
 CMD ["pnpm", "start"]

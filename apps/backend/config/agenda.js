@@ -17,8 +17,9 @@ agenda.on('error', (error) => {
   console.error('Agenda encountered an error:', error);
 });
 
-import defineScrapeJob from '../jobs/scrapeJob.js';
+import defineScrapeJob, { defineScrapeGroup } from '../jobs/scrapeJob.js';
 // Define all jobs here
 defineScrapeJob(agenda); // Load the scrape job
+defineScrapeGroup(agenda); // Load the scrape job
 
 export default agenda;

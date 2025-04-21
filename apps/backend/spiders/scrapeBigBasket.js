@@ -7,7 +7,7 @@ chromium.use(stealth());
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
-    headless: true,
+    headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
     args: [
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
@@ -16,7 +16,7 @@ async function runJob(job, jobId, url, pincode) {
       '--disable-extensions',
       '--disable-infobars',
       '--mute-audio',
-      '--disable-background-networking',
+      '--disable-background-networking'
     ]
   });
 
@@ -30,7 +30,9 @@ async function runJob(job, jobId, url, pincode) {
   });
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en']
+    });
     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
 
     // Spoof WebRTC
@@ -152,9 +154,14 @@ async function runJob(job, jobId, url, pincode) {
           }
         }
       });
-      if (requestUrl === ''){
-        const slug = page.url().split('?')[0].split('/').filter(e=> e!='').pop()
-        requestUrl = `https://www.bigbasket.com/listing-svc/v2/products?type=pc&slug=${slug}&page=1`
+      if (requestUrl === '') {
+        const slug = page
+          .url()
+          .split('?')[0]
+          .split('/')
+          .filter((e) => e != '')
+          .pop();
+        requestUrl = `https://www.bigbasket.com/listing-svc/v2/products?type=pc&slug=${slug}&page=1`;
       }
     }
     // **Step 1: Get cookies after confirming pincode**
@@ -237,7 +244,8 @@ async function runJob(job, jobId, url, pincode) {
               quantity: product.w, // "500 ml"
               mrp: product.pricing.discount.mrp, // "105"
               price: product.pricing.discount.prim_price.sp, // "83.78"
-              articleId: product.id // "40141960"
+              articleId: product.id, // "40141960"
+              variantUrl: `https://www.bigbasket.com${product.absolute_url}` // "https://www.bigbasket.com/pd/40141960/mr-gold-nakshatra-pooja-oil-500-ml/"
             },
             // Variants
             ...product.children.map((variant) => {
@@ -245,11 +253,15 @@ async function runJob(job, jobId, url, pincode) {
                 quantity: variant.w, // "1 L"
                 mrp: variant.pricing.discount.mrp, // "200"
                 price: variant.pricing.discount.prim_price.sp, // "170.8"
-                articleId: variant.id // "40141959"
+                articleId: variant.id,
+                variantUrl: `https://www.bigbasket.com${variant.absolute_url}` // "https://www.bigbasket.com/pd/40141960/mr-gold-nakshatra-pooja-oil-1-l/"
               };
             })
           ],
-          imageUrl: product?.images?.[0]?.l || product?.images?.[0]?.m || product?.images?.[0]?.s,
+          imageUrl:
+            product?.images?.[0]?.l ||
+            product?.images?.[0]?.m ||
+            product?.images?.[0]?.s,
           url: `https://www.bigbasket.com${product.absolute_url}`, // "https://www.bigbasket.com/pd/40141960/mr-gold-nakshatra-pooja-oil-500-ml/"
           pincode: Number(pincode) // External parameter
         };

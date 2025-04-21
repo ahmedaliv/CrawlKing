@@ -3,7 +3,7 @@ import agenda from '../config/agenda.js';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await playwright.chromium.launch({
-    headless:  true/// Set to true for headless mode
+    headless: process.env.SPIDERS_HEADLESS_MODE === 'true' /// Set to true for headless mode
   });
   const startTime = performance.now(); // Record the start time
 
@@ -113,7 +113,7 @@ async function runJob(job, jobId, url, pincode) {
     // Step 3 : Check if the number of products is > 500 , if yes fetch milestones (500 products at a time)
     let finalResponse;
     if (totalProducts > 500) {
-      console.log('if')
+      console.log('if');
       const milestones = Math.ceil(totalProducts / 500);
       let products = [];
       for (let i = 1; i <= milestones; i++) {
@@ -138,7 +138,7 @@ async function runJob(job, jobId, url, pincode) {
       }
       finalResponse = { products };
     } else {
-      console.log('else')
+      console.log('else');
       finalResponse = await page.request.get(
         `https://digital.dmart.in/api/v2/plp/${lastSegmentOfUrl}?page=0&size=${500}&channel=web&storeId=${storeId}`,
         {
@@ -175,7 +175,7 @@ async function runJob(job, jobId, url, pincode) {
         mrp: Number(variant.priceMRP),
         price: Number(variant.priceSALE),
         articleId: Number(variant.articleNumber),
-        variantUrl : `https://www.dmart.in/product/${product.seo_token_ntk}`
+        variantUrl: `https://www.dmart.in/product/${product.seo_token_ntk}`
       }));
 
       if (productMap[title]) {
@@ -192,7 +192,7 @@ async function runJob(job, jobId, url, pincode) {
         });
       } else {
         productMap[title] = {
-          brand: product.manufacturer || "",
+          brand: product.manufacturer || '',
           title,
           variant: variants,
           imageUrl: imageUrl,

@@ -6,7 +6,7 @@ import stealth from 'puppeteer-extra-plugin-stealth';
 chromium.use(stealth());
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
-    headless: true,
+    headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
     args: [
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
@@ -15,7 +15,7 @@ async function runJob(job, jobId, url, pincode) {
       '--disable-extensions',
       '--disable-infobars',
       '--mute-audio',
-      '--disable-background-networking',
+      '--disable-background-networking'
     ]
   });
 
@@ -29,7 +29,9 @@ async function runJob(job, jobId, url, pincode) {
   });
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en']
+    });
     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
 
     // Spoof WebRTC
@@ -167,7 +169,6 @@ async function runJob(job, jobId, url, pincode) {
             });
 
             const body = await response.json();
-            console.log(`data: ${JSON.stringify(body)}`);
 
             const products = body?.response?.snippets ?? [];
             const nextUrl = body?.response?.pagination?.next_url ?? null;
@@ -227,8 +228,6 @@ async function runJob(job, jobId, url, pincode) {
         const variants = [];
         const objects = product?.data?.variant_list || [];
         for (const variant of objects) {
-          console.log(`variant : ${Object.keys(variant)}`);
-          console.log(`variant data : ${Object.keys(variant.data)}`)
           variants.push({
             quantity: variant?.data?.variant?.text || '',
             mrp: Number(cleanText(variant?.data?.mrp.text)) || 0,
@@ -241,7 +240,7 @@ async function runJob(job, jobId, url, pincode) {
 
           variants.push({
             quantity: product?.data?.variant?.text || '',
-            mrp: Number(cleanText(product?.data?.mrp.text)) || 0,
+            mrp: Number(cleanText(product?.data?.mrp?.text)) || 0,
             price: Number(cleanText(product?.data?.normal_price?.text)) || 0,
             articleId: product?.data?.identity?.id || null,
             variantUrl: `https://blinkit.com${getProductLink(product)}`
@@ -278,7 +277,6 @@ async function runJob(job, jobId, url, pincode) {
     }
     console.log('after the normalization')
     allProducts.push(...Object.values(productMap));
-    console.table(allProducts)
     job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
     await job.save();
@@ -300,7 +298,50 @@ function cleanImageURL(url) {
   // Step 2: Remove query parameters (everything after "?")
   return cleaned.split('?')[0];
 }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 export async function main(job, jobId, url, pincode) {
+//   await sleep(5000);
+//   return [
+//     [
+//       {
+//         title: 'Fortune Premium Kachi Ghani Pure Mustard Oil',
+//         brand: 'Fortune',
+//         variant: [
+//           {
+//             quantity: '1 ltr',
+//             mrp: 195,
+//             price: 159,
+//             articleId: 15907,
+//             variantUrl:
+//               'https://blinkit.com/prn/fortune-premium-kachi-ghani-pure-mustard-oil/prid/15907'
+//           },
+//           {
+//             quantity: '1 ltr',
+//             mrp: 190,
+//             price: 158,
+//             articleId: 50,
+//             variantUrl:
+//               'https://blinkit.com/prn/fortune-premium-kachi-ghani-pure-mustard-oil/prid/50'
+//           },
+//           {
+//             quantity: '5 ltr',
+//             mrp: 1000,
+//             price: 827,
+//             articleId: 15902,
+//             variantUrl:
+//               'https://blinkit.com/prn/fortune-premium-kachi-ghani-pure-mustard-oil/prid/15902'
+//           }
+//         ],
+//         imageUrl:
+//           'https://cdn.grofers.com/da/cms-assets/cms/product/b6ea131f-4f30-48ff-9b52-dd8488c0980b.jpg',
+//         url: 'https://blinkit.com/prn/fortune-premium-kachi-ghani-pure-mustard-oil/prid/15907',
+//         pincode: 500074
+//       }
+//     ],
+//     'blinkit'
+//   ];
   return await runJob(job, jobId, url, pincode);
 }
 // await runJob(

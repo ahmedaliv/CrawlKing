@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
         userId: user.id
       },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '1d' }
     );
     res.status(200).json({ token });
   } catch (e) {

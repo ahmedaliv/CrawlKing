@@ -1,7 +1,6 @@
 import { chromium } from 'playwright';
 import UserAgent from 'user-agents';
 
-
 // Configuration constants
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
@@ -11,7 +10,7 @@ const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrent
 async function runJob(job, jobId, url, pincode) {
   console.log(`Starting scrape job for ${url} with pincode ${pincode}`);
   const browser = await chromium.launch({
-    headless: true // Run headless for better performance
+    headless: process.env.SPIDERS_HEADLESS_MODE === 'true' // Run headless for better performance
   });
   const userAgent = new UserAgent({ deviceCategory: 'desktop' });
   const randomUserAgent = userAgent.toString();
@@ -21,7 +20,7 @@ async function runJob(job, jobId, url, pincode) {
     bypassCSP: true
   });
   const page = await context.newPage();
-  
+
   const startTime = performance.now();
   let products = [];
   let fileName = '';
@@ -338,9 +337,9 @@ async function extractSingleProduct(page, productLocator, pincode) {
     const imageLocator = productLocator.locator('> a > div.plp-card-container');
     let imageUrl = '';
     if ((await imageLocator.count()) > 0) {
-      const lastPart = await imageLocator.getAttribute('data-image')
-      if (lastPart){
-        imageUrl =`https://www.jiomart.com/images/product/original/${lastPart}`;
+      const lastPart = await imageLocator.getAttribute('data-image');
+      if (lastPart) {
+        imageUrl = `https://www.jiomart.com/images/product/original/${lastPart}`;
       }
     }
 
@@ -418,8 +417,8 @@ export async function main(job, jobId, url, pincode) {
   return await runJob(job, jobId, url, pincode);
 }
 function extractQuantity(title) {
-  const quantityPattern = /\b(\d*\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch))\b/i;
+  const quantityPattern =
+    /\b(\d*\.?\d*\s?(?:g|kg|ml|l|pcs|pack|dozen|count|bags|bottle|tin|cans|sachet|strip|tablet|capsule|bar|bundle|roll|pair|set|box|carton|tray|cup|stick|piece|pouch))\b/i;
   const match = title.match(quantityPattern);
-  return match ? match[0] : "";
+  return match ? match[0] : '';
 }
-

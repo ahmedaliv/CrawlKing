@@ -34,7 +34,7 @@ import { exportJob } from '@/utils/exportUtil';
 import cronParser from 'cron-parser';
 import { format, parseISO } from 'date-fns';
 import { useToast } from './hooks/use-toast';
-import { Job, JobStatus } from '@/utils/types';
+import { Job } from '@/utils/types';
 import { useFetchJobsQuery } from '@/api/queries';
 import { useDeleteAllJobsMutation, useRetryJobMutation } from '@/api/mutations';
 import { useQueryClient } from '@tanstack/react-query';
@@ -324,11 +324,11 @@ export function DataTable() {
                             localStorage.removeItem('jobId');
                           }}
                         >
-                          Yes I'm sure
+                          Yes I&apos;m sure
                         </Button>
                       </DialogClose>
                       <DialogClose asChild>
-                        <Button>I've changed my mind</Button>
+                        <Button>I&apos;ve changed my mind</Button>
                       </DialogClose>
                     </div>
                   </div>
