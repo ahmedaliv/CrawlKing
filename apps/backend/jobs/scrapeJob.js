@@ -456,7 +456,7 @@ function getSourceFromUrl(url) {
  */
 async function runProductMatcher(folderPath) {
   const scriptPath = path.join(__dirname, 'main.py');
-  const venvPython = path.join(__dirname, '..', 'venv', 'bin', 'python');
+  const venvPython = path.join(__dirname, 'venv', 'bin', 'python');
 
   try {
     const { stdout, stderr } = await execFileAsync(venvPython, [
