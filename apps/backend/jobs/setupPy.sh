@@ -9,6 +9,6 @@ python3 -m venv "$SCRIPT_DIR/venv"
 echo "Activating virtual environment and installing packages"
 source "$SCRIPT_DIR/venv/bin/activate" && \
 pip install --upgrade pip && \
-pip install torch torchvision transformers scikit-learn numpy pillow pathlib
+pip install torch torchvision transformers scikit-learn numpy pillow pathlib hf_xet
 
 echo "Python environment setup complete in $SCRIPT_DIR/venv"
