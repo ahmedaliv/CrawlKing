@@ -277,7 +277,6 @@ async function runJob(job, jobId, url, pincode) {
     }
     console.log('after the normalization')
     allProducts.push(...Object.values(productMap));
-    console.table(allProducts)
     job.attrs.data.total_products = allProducts.length;
     job.attrs.data.progress = 100;
     await job.save();
