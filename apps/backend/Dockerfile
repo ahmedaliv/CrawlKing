@@ -1,30 +1,31 @@
-# Use Playwright base image (comes with Node, Python, and deps preinstalled)
-FROM mcr.microsoft.com/playwright:v1.41.0-jammy
+# Base image with Python and Node.js
+FROM node:18
 
-# Set working directory
+# Install Python and required packages
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip python3-venv && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working dir
 WORKDIR /usr/src/app
 
-# Copy package manager files
+# Copy package files & install deps
 COPY package*.json ./
-
-# Install pnpm globally
 RUN npm install -g pnpm
-
-# Install Node.js dependencies
 RUN pnpm install
 
-# Install Playwright and its system dependencies
+# Install Playwright deps
 RUN pnpm exec playwright install-deps
 RUN pnpm exec playwright install
 
-# Copy the rest of the project (including setupPy.sh)
+# Copy all project files
 COPY . .
 
-# Run your Python environment setup script
+# Run Python setup
 RUN chmod +x ./jobs/setupPy.sh && ./jobs/setupPy.sh
 
-# Expose app port
+# Expose port
 EXPOSE 3000
 
-# Run the app
+# Start app
 CMD ["pnpm", "start"]
