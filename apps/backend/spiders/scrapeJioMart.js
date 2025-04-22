@@ -405,7 +405,7 @@ async function extractSingleProduct(page, productLocator, pincode) {
       variants: variants, // Simplified to just use the original variant
       url: productUrl,
       imageUrl,
-      pinCode: Number(pincode)
+      pincode: Number(pincode)
     };
   } catch (error) {
     console.error(`Error extracting product data: ${error.message}`);
