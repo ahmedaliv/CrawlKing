@@ -334,13 +334,10 @@ async function extractSingleProduct(page, productLocator, pincode) {
     }
 
     // Extract image URL
-    const imageLocator = productLocator.locator('> a > div.plp-card-container');
+    const imageLocator = productLocator.locator('.plp-card-image img');
     let imageUrl = '';
     if ((await imageLocator.count()) > 0) {
-      const lastPart = await imageLocator.getAttribute('data-image');
-      if (lastPart) {
-        imageUrl = `https://www.jiomart.com/images/product/original/${lastPart}`;
-      }
+      imageUrl = await imageLocator.getAttribute('src');
     }
 
     // Extract product URL

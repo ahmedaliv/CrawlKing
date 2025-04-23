@@ -12,6 +12,8 @@ from transformers import BertTokenizer, BertModel
 import os
 import logging
 
+FEATURE_DIMENSION = 2048  # For ResNet50 without final layer
+
 def match_products(folder_path: str):
 
     # Setup paths
@@ -159,6 +161,11 @@ def match_products(folder_path: str):
     def form_subgroups(group, threshold=0.8, use_image_similarity=True, use_title_similarity=True, image_weight=0.5):
         if not group:
             return []
+        for p in group:
+            if "imageFeatures" not in p:
+                print(f"Warning: Missing imageFeatures for product {p.get('id', 'unknown')}")
+                p["imageFeatures"] = np.zeros(FEATURE_DIMENSION)  # Use appropriate default
+
         features = [p['imageFeatures'] for p in group]
         image_sim_matrix = np.zeros((len(group), len(group)))
         if use_image_similarity:
