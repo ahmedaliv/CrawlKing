@@ -113,13 +113,16 @@ async function runJob(job, jobId, url, pincode) {
         } catch (error) {
             console.error('Error getting variant POST link, using the default...');
         }
-        const allProducts = await scrapeAllPages({
+        const allProducts = (await scrapeAllPages({
             page,
             baseUrl: requestUrl,
             variantLink,
             headers: requestHeaders,
             originalPostData,
             job
+        })).map(p => {
+            p['pincode'] = Number(pincode);
+            return p;
         });
 
         return [allProducts, fileName]
@@ -164,7 +167,7 @@ async function handlePincodeEntry(page, pincode) {
     }
 }
 
-async function scrapeAllPages({ page, baseUrl, variantLink, headers, originalPostData,job }) {
+async function scrapeAllPages({ page, baseUrl, variantLink, headers, originalPostData, job }) {
     const allHits = [];
     let pageNum = 0;
     const hitsPerPage = 50;
@@ -556,28 +559,28 @@ async function scrapeAllPages({ page, baseUrl, variantLink, headers, originalPos
                     return items
                 }
                 return transformItems(hits, firstResult)
-                .map((item) => {
-                    const quantity = item.size || extractQuantity(item.display_name) || null;
-                    const mrp = Number(item.finalMRP) || 0
-                    const price =  Number(item.finalSalePrice) || 0
-                    // Skip items where mrp or price is 0
-                    if (mrp === 0 || price === 0) return null;
-            
-                    return {
-                        name: item.display_name || 'unknown product',
-                        brand: item.brand || 'unknown brand',
-                        variant: [{
-                            quantity,
-                            mrp,
-                            price,
-                            articleId: Number(item.objectID),
-                            variantUrl: `https://www.jiomart.com${item.url_path}`
-                        }],
-                        imageUrl: item.image_url || 'default-image.jpg',
-                        variantCodes: item?.variants?.map(v => v.product_code)
-                    };
-                })
-                .filter(Boolean); // Remove the nulls
+                    .map((item) => {
+                        const quantity = item.size || extractQuantity(item.display_name) || null;
+                        const mrp = Number(item.finalMRP) || 0
+                        const price = Number(item.finalSalePrice) || 0
+                        // Skip items where mrp or price is 0
+                        if (mrp === 0 || price === 0) return null;
+
+                        return {
+                            name: item.display_name || 'unknown product',
+                            brand: item.brand || 'unknown brand',
+                            variant: [{
+                                quantity,
+                                mrp,
+                                price,
+                                articleId: Number(item.objectID),
+                                variantUrl: `https://www.jiomart.com${item.url_path}`
+                            }],
+                            imageUrl: item.image_url || 'default-image.jpg',
+                            variantCodes: item?.variants?.map(v => v.product_code)
+                        };
+                    })
+                    .filter(Boolean); // Remove the nulls
                 // return transformItems(hits, firstResult).map(
                 // (item) => ({
                 //     name: item.display_name || 'unknown product',
@@ -594,91 +597,91 @@ async function scrapeAllPages({ page, baseUrl, variantLink, headers, originalPos
                 //         return v.product_code
                 //     })
                 // })
-            // );
+                // );
 
-        }, { hits, firstResult })
+            }, { hits, firstResult })
 
-        let index_name = await page.evaluate(() => window.algolia_suffix + "_master_vertical")
-        let master_code = await page.evaluate(() => {
-            let master_code = window.default_vertical_city_code;
-            if (localStorage.getItem('jio_region_codes')) {
-                master_code = JSON.parse(localStorage.getItem('jio_region_codes'));
-            }
-            return master_code
-        })
-        for (let i = 0; i < transformed.length; i++) {
-            const codes = []
+            let index_name = await page.evaluate(() => window.algolia_suffix + "_master_vertical")
+            let master_code = await page.evaluate(() => {
+                let master_code = window.default_vertical_city_code;
+                if (localStorage.getItem('jio_region_codes')) {
+                    master_code = JSON.parse(localStorage.getItem('jio_region_codes'));
+                }
+                return master_code
+            })
+            for (let i = 0; i < transformed.length; i++) {
+                const codes = []
 
-            for (let j = 0; j < transformed[i]?.variantCodes?.length || 0; j++) {
-                //get variant data
-                codes.push({ indexName: index_name, objectID: String(transformed[i].variantCodes[j]) })
-            }
-            if ((transformed[i]?.variantCodes?.length || 0) > 0) {
-                const varResponse = await page.request.post(variantLink, {
-                    headers,
-                    data: JSON.stringify({ requests: codes }),
-                });
-                const variantData = await varResponse.json();
-                const variantHits = variantData?.results || [];
-                for (let k = 0; k < variantHits?.length || 0; k++) {
-                    const hit = variantHits[k]
-                    try {
-                        let prod_vert = hit.category_level.level1[0].toUpperCase();
-                        let region_code = master_code[prod_vert][0]
-                        if (hit.buybox_mrp && hit.buybox_mrp && hit.buybox_mrp[region_code] && hit.buybox_mrp[region_code].available) {
-                            const vari = {}
-                            let reg_value = hit.buybox_mrp[region_code]
-                                , sellprice = parseFloat(reg_value.price).toFixed(2)
-                                , mrp = parseFloat(reg_value.mrp).toFixed(2)
-                            // check if mrp or sellprice == 0 - do not push
-                            if (sellprice !== '0.00' && mrp !== '0.00') {
-                                // push your item here
+                for (let j = 0; j < transformed[i]?.variantCodes?.length || 0; j++) {
+                    //get variant data
+                    codes.push({ indexName: index_name, objectID: String(transformed[i].variantCodes[j]) })
+                }
+                if ((transformed[i]?.variantCodes?.length || 0) > 0) {
+                    const varResponse = await page.request.post(variantLink, {
+                        headers,
+                        data: JSON.stringify({ requests: codes }),
+                    });
+                    const variantData = await varResponse.json();
+                    const variantHits = variantData?.results || [];
+                    for (let k = 0; k < variantHits?.length || 0; k++) {
+                        const hit = variantHits[k]
+                        try {
+                            let prod_vert = hit.category_level.level1[0].toUpperCase();
+                            let region_code = master_code[prod_vert][0]
+                            if (hit.buybox_mrp && hit.buybox_mrp && hit.buybox_mrp[region_code] && hit.buybox_mrp[region_code].available) {
+                                const vari = {}
+                                let reg_value = hit.buybox_mrp[region_code]
+                                    , sellprice = parseFloat(reg_value.price).toFixed(2)
+                                    , mrp = parseFloat(reg_value.mrp).toFixed(2)
+                                // check if mrp or sellprice == 0 - do not push
+                                if (sellprice !== '0.00' && mrp !== '0.00') {
+                                    // push your item here
 
-                                vari.quantity = hit.size || extractQuantity(hit.display_name) || null,
-                                    vari.mrp = Number(mrp) || 0,
-                                    vari.price = Number(sellprice) || 0,
-                                    vari.articleId = Number(hit.objectID),
-                                    vari.variantUrl = `https://www.jiomart.com${hit.url_path}`
-                                transformed[i].variant.push(vari)
+                                    vari.quantity = hit.size || extractQuantity(hit.display_name) || null,
+                                        vari.mrp = Number(mrp) || 0,
+                                        vari.price = Number(sellprice) || 0,
+                                        vari.articleId = Number(hit.objectID),
+                                        vari.variantUrl = `https://www.jiomart.com${hit.url_path}`
+                                    transformed[i].variant.push(vari)
 
+                                }
                             }
-                        } 
-                    } catch (error) {
-                        console.error(`error happened during getting variant ${error}`)
+                        } catch (error) {
+                            console.error(`error happened during getting variant ${error}`)
+                        }
                     }
                 }
             }
+        } catch (err) {
+            console.error(`❌ failed to parse json on page ${pageNum}:`, err);
+            throw err;
         }
-    } catch (err) {
-        console.error(`❌ failed to parse json on page ${pageNum}:`, err);
-        throw err;
+
+        const hits = body.results?.[0]?.hits || [];
+        console.log(`⬅️  received ${hits.length} hits on page ${pageNum}`);
+
+        if (hits.length === 0) {
+            console.log(`🏁 No more hits at page ${pageNum}. Total products collected: ${allHits.length}`);
+            break;
+        }
+
+        if (transformed.length == 0) {
+            console.log(`length of total hits ${allHits.length} -- end `)
+        } else {
+            console.log(`curren len of hits ${allHits.length}`)
+        }
+        allHits.push(...transformed);
+        job.attrs.data.total_products = allHits.length;
+        job.attrs.data.progress = Math.round((allHits.length / 1000)) * 100;
+        await job.save();
+        pageNum++;
     }
 
-    const hits = body.results?.[0]?.hits || [];
-    console.log(`⬅️  received ${hits.length} hits on page ${pageNum}`);
-
-    if (hits.length === 0) {
-        console.log(`🏁 No more hits at page ${pageNum}. Total products collected: ${allHits.length}`);
-        break;
-    }
-
-    if (transformed.length == 0) {
-        console.log(`length of total hits ${allHits.length} -- end `)
-    } else {
-        console.log(`curren len of hits ${allHits.length}`)
-    }
-    allHits.push(...transformed);
-    job.attrs.data.total_products = allHits.length;
-    job.attrs.data.progress =  Math.round((allHits.length / 1000)) * 100;
-    await job.save();
-    pageNum++;
-}
-
-console.log(`✅ Finished scraping. Total hits: ${allHits.length}`);
-return allHits.map((item) => {
-    delete item['variantCodes'];
-    return item;
-});
+    console.log(`✅ Finished scraping. Total hits: ${allHits.length}`);
+    return allHits.map((item) => {
+        delete item['variantCodes'];
+        return item;
+    });
 
 }
 
