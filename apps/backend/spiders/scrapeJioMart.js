@@ -577,6 +577,7 @@ async function scrapeAllPages({ page, baseUrl, variantLink, headers, originalPos
                                 variantUrl: `https://www.jiomart.com${item.url_path}`
                             }],
                             imageUrl: item.image_url || 'default-image.jpg',
+                            url:`https://www.jiomart.com${item.url_path}`, 
                             variantCodes: item?.variants?.map(v => v.product_code)
                         };
                     })
