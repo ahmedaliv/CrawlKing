@@ -567,7 +567,7 @@ async function scrapeAllPages({ page, baseUrl, variantLink, headers, originalPos
                         if (mrp === 0 || price === 0) return null;
 
                         return {
-                            name: item.display_name || 'unknown product',
+                            title: item.display_name || 'unknown product',
                             brand: item.brand || 'unknown brand',
                             variant: [{
                                 quantity,

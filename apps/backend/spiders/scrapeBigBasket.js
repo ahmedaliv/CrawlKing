@@ -236,8 +236,8 @@ async function runJob(job, jobId, url, pincode) {
       const transformedProducts = products || [];
       const allProducts = transformedProducts.map((product) => {
         return {
-          brand: product.brand.name, // "Mr. Gold"
           title: product.desc, // "Nakshatra Pooja Oil"
+          brand: product.brand.name, // "Mr. Gold"
           variant: [
             // Original product
             {
