@@ -44,22 +44,73 @@ async function runJob(job, jobId, url, pincode) {
         const pinCode = page
             .locator(`div[data-testid="address-search-item"]:has-text("${pincode}")`)
             .first();
+        const breadcrumbs = await page
+            .locator('div:has( > script[id="breadcrumbSchema"])  > span')
+            .all();
 
+        // Get the last breadcrumb text
+        let categoryName = '';
+        if (breadcrumbs.length > 2) {
+            categoryName = (await breadcrumbs[breadcrumbs.length - 2].textContent())
+                .trim()
+                .toLowerCase();
+        } else {
+            categoryName = breadcrumbs[breadcrumbs.length - 1]
+                .trim()
+                .toLowerCase();
+        }
+        // Format the category name
+        categoryName = categoryName
+            .replace(',', ' ')
+            .replace(' ', '-')
+            .replace(/\s+/g, '-') // Replace spaces with hyphens
+            .replace(/[&]/g, 'and') // Replace '&' with 'and'
+            .replace(/[^a-zA-Z0-9-_]/g, '') // Remove any other special characters
+            .toLowerCase();
+
+        console.log(categoryName);
+
+        const filename = `ZeptoNow-${pincode}-${categoryName}-products`;
+        console.log(filename);
+
+        job.attrs.data.progress = 5;
+        await job.save();
 
         // await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
-        const apiResponses = [];
-        const apiProducts = []
-        page.on('response', async (response) => {
-            // Filter for relevant API endpoints (adjust the URL pattern as needed)
-            if (response.url().includes('store-products-by-store-subcategory-id')) {
-                try {
-                    const responseData = await response.json();
-                    apiResponses.push(responseData);
-                    console.log(`Captured API response from: ${response.url()}`);
-                } catch (error) {
-                    console.error(`Failed to parse response from ${response.url()}:`, error);
-                }
-            }
+        // const apiProducts = []
+        const brandSet = new Set();
+
+        page.on('response', response => {
+            // only care about this endpoint
+            if (!response.url().includes('store-products-by-store-subcategory-id'))
+                return;
+            // parse JSON as soon as it arrives, but never store the whole payload
+            response
+                .json()
+                .then(data => {
+                    // ensure top‐level shape
+                    if (!data || !Array.isArray(data.storeProducts)) return;
+
+                    data.storeProducts.forEach(item => {
+                        // safely dig into product.brand
+                        const brand = item
+                            && typeof item === 'object'
+                            && item.product
+                            && typeof item.product === 'object'
+                            && item.product.brand;
+
+                        // only strings with non‑whitespace chars
+                        if (typeof brand === 'string') {
+                            const b = brand.trim();
+                            if (b.length > 0) {
+                                brandSet.add(b);
+                            }
+                        }
+                    });
+                })
+                .catch(err => {
+                    console.error(`Failed to parse JSON from ${response.url()}:`, err);
+                });
         });
 
         // Click the pin code element
@@ -74,73 +125,8 @@ async function runJob(job, jobId, url, pincode) {
         // get the products that shows when the page first loaded
 
         await page.waitForSelector("div a[data-testid='product-card']");
-        const rawPageProducts = await page.querySelectorAll("div a[data-testid='product-card']")
-        const productMap = {}
-        const titleIdMap = {}
-        for (p in rawPageProducts) {
-            let productLink = await p.getAttribute('href')
-            if (productLink) {
-                productLink = `https://www.zeptonow.com${productLink}`
-            }
-            const productId = productLink.split('pvid/')[1]
-            const productImgElement = await p.querySelector('img:first-of-type');
-            const productImgSrc = await productImgElement.getAttribute('src');
-            const productTitleElement = await p.querySelector('> div:nth-child(2) >div:first-child h5');
-            let productTitle = '';
-            if (productTitleElement) {
-                productTitle = await productTitleElement.innerText();
-            }
-            const productQuantityElement = await p.querySelector('> div:nth-child(2) span')
-            let productQuantity = '';
-            if (productQuantityElement) {
-                productQuantity = await productQuantityElement.innerText();
-            }
-            const productMrpElement = await p.querySelector('> div:nth-child(3) > div p:')
-            let productMrp = '';
-            if (productMrpElement) {
-                productMrp = await productMrpElement.innerText();
-            }
-            const productSalePriceElement = await p.querySelector('> div:nth-child(3) > div h4')
-            let productSalePrice = '';
-            if (productSalePriceElement) {
-                productSalePrice = await productSalePriceElement.innerText();
-            }
-            if (!productMrpElement) {
-                productMrp = productSalePrice
-            }
-            if (titleIdMap[productTitle]) {
-                productMap[productId].variant.push({
-                    articleId: productId,
-                    price: productSalePrice,
-                    mrp: productMrp,
-                    quantity: productQuantity,
-                    variantUrl: productLink
-                })
 
-            }
-            titleIdMap[productTitle] = productId
-            productMap[productId] = {
-                title: productTitle,
-                brand: '',
-                variant: [
-                    {
-                        articleId: productId,
-                        price: productSalePrice,
-                        mrp: productMrp,
-                        quantity: productQuantity,
-                        variantUrl: productLink,
-                    }
-                ],
-                imageUrl: productImgSrc,
-                variantUrl: productLink,
-                pincode: Number(pincode)
-            }
 
-        }
-
-        const pageProducts = Array.from(Object.values(productMap));
-
-        const brandSet = new Set()
         console.log('Product cards loaded');
         await page.evaluate(() => {
             return new Promise(resolve => {
@@ -200,30 +186,114 @@ async function runJob(job, jobId, url, pincode) {
             });
         });
 
+        const cards = page.locator("div a[data-testid='product-card']");
+        const count = await cards.count();
+        const productMap = {};
+        const titleIdMap = {};
 
-        console.log(`Captured ${apiResponses.length} API responses`);
-        apiResponses.forEach((response, index) => {
-            console.log(`Response ${index + 1}:`);
-            // Example: Extract product data (adjust based on actual response structure)
-            if (response.products) {
-                response.products.forEach(product => {
-                    console.log(`Product: ${product.name}, Brand: ${product.brand}`);
-                });
+        for (let idx = 0; idx < count; idx++) {
+            const card = cards.nth(idx);
+            try {
+                // href & id
+                let href = (await card.getAttribute('href')) || '';
+                href = href ? `https://www.zeptonow.com${href}` : '';
+                const productId = href.split('pvid/')[1] || '';
+                // title → first matching h5
+                const titleLocator = card.locator('> div:nth-child(2) > div:first-child h5').first();
+                const title = ((await titleLocator.textContent()) || '').trim();
+                if (titleIdMap[title]) {
+                    const variantExists = productMap[
+                        titleIdMap[title]
+                    ].variant.some((v) => v.articleId === productId);
+                    if (variantExists) continue;
+                }
+                // image → first img
+                const imgLocator = card.locator('img').first();
+                const imageUrl = (await imgLocator.getAttribute('src')) || '';
+
+
+                // quantity → first matching span
+                const qtyLocator = card.locator('> div:nth-child(2) span').first();
+                const quantity = ((await qtyLocator.textContent()) || '').trim();
+
+                // mrp & sale → first matching p and h4
+                const mrpLocator = card.locator('> div:nth-child(3) > div p').first();
+                let mrp = '';
+                if (await mrpLocator.count() > 0) {
+                    mrp = (await mrpLocator.textContent() || '').trim();
+                }
+                const saleLocator = card.locator('> div:nth-child(3) > div h4').first();
+                const sale = ((await saleLocator.textContent()) || '').trim();
+                if (!mrp) mrp = sale;
+
+                // build variant
+                const variant = { articleId: productId, price: parseCurrencyString(sale), mrp: parseCurrencyString(mrp), quantity, variantUrl: href };
+
+                if (title && titleIdMap[title]) {
+                    productMap[titleIdMap[title]].variant.push(variant);
+                } else {
+                    titleIdMap[title] = productId;
+                    productMap[productId] = {
+                        title,
+                        brand: '',
+                        variant: [variant],
+                        imageUrl,
+                        url: href,
+                        pincode: Number(pincode) || null
+                    };
+                }
+            } catch (e) {
+                console.error(`Failed on card #${idx}:`, e);
+                // continue to next card
             }
+
+            // progress update every 50 cards
+            if (count > 50) {
+                if (idx % 50 === 0) {
+                    job.attrs.data.progress = Math.round((idx / count) * 100);
+                    job.attrs.data.total_products = idx;
+                    await job.save();
+                }
+                console.log(`Parsed product #${idx} of ${count}`);
+            } else {
+                job.attrs.data.progress = Math.round((idx / count) * 100);
+                job.attrs.data.total_products = idx;
+                await job.save();
+            }
+        }
+
+
+
+
+        const allProducts = [...Object.values(productMap)];
+        const brands = Array.from(brandSet);
+
+        // for each product, find a brand whose name is contained in its title
+        allProducts.forEach(prod => {
+            const title = (prod.title || '').toLowerCase();
+
+            // find the first brand that appears in the title
+            const match = brands.find(b => {
+                // guard: only non‑empty strings
+                if (typeof b !== 'string' || !b.trim()) return false;
+                return title.includes(b.toLowerCase());
+            });
+
+            prod.brand = match || '';    // set brand or empty string if none matched
         });
-        // allProducts.push(...Object.values(productMap));
-        return [[], null];
+
+        // return [[], null];
         job.attrs.data.progress = 100;
 
-        // job.attrs.data.total_products = allProducts.length;
+        job.attrs.data.total_products = allProducts.length;
         await job.save();
-        // return [allProducts, filename];
+        return [allProducts, filename];
         // await page.waitForSelector("section ul li[class*='PaginateItems']");
     } catch (error) {
         console.error(`Job ${jobId} failed with error: ${error.message}`);
         return [[], null];
     } finally {
-        // await browser.close();
+        await browser.close();
         const endTime = performance.now();
     }
 }
@@ -233,4 +303,9 @@ function sleep(ms) {
 }
 export async function main(job, jobId, url, pincode) {
     return await runJob(job, jobId, url, pincode);
+}
+function parseCurrencyString(str) {
+    const cleaned = str.replace(/[^\d.,]/g, ""); // Keep digits, dots, and commas
+    const normalized = cleaned.replace(/,/g, ""); // Remove commas for parsing
+    return parseFloat(normalized);
 }
