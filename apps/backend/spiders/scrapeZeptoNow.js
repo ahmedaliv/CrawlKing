@@ -27,34 +27,17 @@ async function runJob(job, jobId, url, pincode) {
         viewport: { width: 1280, height: 720 },
         bypassCSP: true
     });
-    await context.addInitScript(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en']
-        });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-
-        // Spoof WebRTC
-        Object.defineProperty(navigator, 'connection', {
-            get: () => ({ effectiveType: '4g' })
-        });
-    });
     const page = await context.newPage();
-    page.setDefaultTimeout(60000)
     await context.addInitScript(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
     });
-    await context.addInitScript(() => {
-        Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
-            constructor(locale, options) {
-                super('en-US', options);
-            }
-        };
-        Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
-            value: () => ({ timeZone: 'America/New_York' })
-        });
+    await page.setExtraHTTPHeaders({
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Referer': 'https://www.zeptonow.com/',
     });
-
     try {
         await page.goto(url, { waitUntil: 'networkidle' });
 
