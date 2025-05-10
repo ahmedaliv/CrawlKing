@@ -56,7 +56,8 @@ async function runJob(job, jobId, url, pincode) {
     });
 
     try {
-        await page.goto(url);
+        await page.goto(url, { waitUntil: 'networkidle' });
+
         await page.waitForSelector("div a[data-testid='product-card']");
         // Handle location input (Pincode)
         await page.waitForSelector('button[aria-label="Select Location"]');
@@ -325,7 +326,8 @@ async function runJob(job, jobId, url, pincode) {
         // await page.waitForSelector("section ul li[class*='PaginateItems']");
     } catch (error) {
         console.error(`Job ${jobId} failed with error: ${error.message}`);
-        await page.screenshot({ path: 'screenshot.png' });
+        await page.screenshot({ path: 'debug.png', fullPage: true });
+
         return [[], null];
     } finally {
         await browser.close();
