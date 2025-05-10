@@ -1,9 +1,10 @@
-import UserAgent from 'user-agents';
 import { chromium } from 'playwright-extra';
 
 import stealth from 'puppeteer-extra-plugin-stealth';
 
 chromium.use(stealth());
+
+import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
     const browser = await chromium.launch({
         headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
@@ -27,18 +28,34 @@ async function runJob(job, jobId, url, pincode) {
         viewport: { width: 1280, height: 720 },
         bypassCSP: true
     });
+    await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        Object.defineProperty(navigator, 'languages', {
+            get: () => ['en-US', 'en']
+        });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
+        // Spoof WebRTC
+        Object.defineProperty(navigator, 'connection', {
+            get: () => ({ effectiveType: '4g' })
+        });
+    });
     const page = await context.newPage();
     await context.addInitScript(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
     });
-    await page.setExtraHTTPHeaders({
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://www.zeptonow.com/',
+    await context.addInitScript(() => {
+        Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
+            constructor(locale, options) {
+                super('en-US', options);
+            }
+        };
+        Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
+            value: () => ({ timeZone: 'America/New_York' })
+        });
     });
     try {
+        await page.goto("https://zeptonow.com/", { waitUntil: 'networkidle' });
         await page.goto(url, { waitUntil: 'networkidle' });
 
         await page.waitForSelector("div a[data-testid='product-card']");
