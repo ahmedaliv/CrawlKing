@@ -7,9 +7,13 @@ chromium.use(stealth());
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
     const browser = await chromium.launch({
-        headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
+        headless: false,
+        // headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
         args: [
             '--disable-blink-features=AutomationControlled',
+            '--enable-webgl',
+            '--use-gl=swiftshader',
+            '--enable-accelerated-2d-canvas',
             '--disable-dev-shm-usage',
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -26,7 +30,9 @@ async function runJob(job, jobId, url, pincode) {
     const context = await browser.newContext({
         userAgent,
         viewport: { width: 1280, height: 720 },
-        bypassCSP: true
+        deviceScaleFactor: 1,
+        locale: 'en-US',
+        'timezoneId': 'America/New_York',
     });
     await context.addInitScript(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });

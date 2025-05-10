@@ -1,9 +1,9 @@
 # Base image with Python and Node.js
 FROM node:18
 
-# Install Python and required packages
+# Install Python, required packages, and Xvfb
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip python3-venv && \
+    apt-get install -y python3 python3-pip python3-venv xvfb && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working dir
@@ -28,4 +28,4 @@ RUN chmod +x ./jobs/setupPy.sh && ./jobs/setupPy.sh
 EXPOSE 3000
 
 # Start app
-CMD ["pnpm", "start"]
+CMD ["xvfb-run", "-a", "pnpm", "start"]
