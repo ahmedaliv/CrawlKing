@@ -1,27 +1,61 @@
-import playwright from 'playwright';
 import UserAgent from 'user-agents';
-/*
-we can go with basic ui scraping but we would face a problem that there is no specific element to get the brand from 
-we can monitior requests and get as much as we can and get the brands from the responses
+import { chromium } from 'playwright-extra';
 
-and then we just do basic scraping and then we go again over the products  and put the corresponding brand to the product
-based on the product name
+import stealth from 'puppeteer-extra-plugin-stealth';
 
-*/
+chromium.use(stealth());
 async function runJob(job, jobId, url, pincode) {
-    const browser = await playwright.chromium.launch({
-        headless: process.env.SPIDERS_HEADLESS_MODE === 'true'
+    const browser = await chromium.launch({
+        headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
+        args: [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-dev-shm-usage',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-extensions',
+            '--disable-infobars',
+            '--mute-audio',
+            '--disable-background-networking'
+        ]
+    });
+
+    // Apply stealth plugin
+
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
+    const context = await browser.newContext({
+        userAgent,
+        viewport: { width: 1280, height: 720 },
+        bypassCSP: true
+    });
+    await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        Object.defineProperty(navigator, 'languages', {
+            get: () => ['en-US', 'en']
+        });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
+        // Spoof WebRTC
+        Object.defineProperty(navigator, 'connection', {
+            get: () => ({ effectiveType: '4g' })
+        });
+    });
+    const page = await context.newPage();
+    page.setDefaultTimeout(60000)
+    await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
+    await context.addInitScript(() => {
+        Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
+            constructor(locale, options) {
+                super('en-US', options);
+            }
+        };
+        Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
+            value: () => ({ timeZone: 'America/New_York' })
+        });
     });
 
     try {
-        const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-
-        const randomUserAgent = userAgent.toString();
-        const context = await browser.newContext({
-            userAgent: randomUserAgent
-        });
-        const page = await context.newPage();
-        page.setDefaultTimeout(120000);
         await page.goto(url);
         await page.waitForSelector("div a[data-testid='product-card']");
         // Handle location input (Pincode)
@@ -291,7 +325,7 @@ async function runJob(job, jobId, url, pincode) {
         // await page.waitForSelector("section ul li[class*='PaginateItems']");
     } catch (error) {
         console.error(`Job ${jobId} failed with error: ${error.message}`);
-        await page.screenshot({ path: 'screenshot.png' });
+        // await page.screenshot({ path: 'screenshot.png' });
         return [[], null];
     } finally {
         await browser.close();
