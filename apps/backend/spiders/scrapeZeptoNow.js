@@ -1,67 +1,19 @@
-import { chromium } from 'playwright-extra';
-
-import stealth from 'puppeteer-extra-plugin-stealth';
-
-chromium.use(stealth());
-
+import playwright from 'playwright';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
-    const browser = await chromium.launch({
-        headless: false,
-        // headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
-        args: [
-            '--disable-blink-features=AutomationControlled',
-            '--enable-webgl',
-            '--use-gl=swiftshader',
-            '--enable-accelerated-2d-canvas',
-            '--disable-dev-shm-usage',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-extensions',
-            '--disable-infobars',
-            '--mute-audio',
-            '--disable-background-networking'
-        ]
+    const browser = await playwright.chromium.launch({
+        headless: false
     });
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
 
-    // Apply stealth plugin
-
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
+    const randomUserAgent = userAgent.toString();
     const context = await browser.newContext({
-        userAgent,
-        viewport: { width: 1280, height: 720 },
-        deviceScaleFactor: 1,
-        locale: 'en-US',
-        'timezoneId': 'America/New_York',
-    });
-    await context.addInitScript(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en']
-        });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-
-        // Spoof WebRTC
-        Object.defineProperty(navigator, 'connection', {
-            get: () => ({ effectiveType: '4g' })
-        });
+        userAgent: randomUserAgent
     });
     const page = await context.newPage();
-    await context.addInitScript(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    });
-    await context.addInitScript(() => {
-        Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
-            constructor(locale, options) {
-                super('en-US', options);
-            }
-        };
-        Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
-            value: () => ({ timeZone: 'America/New_York' })
-        });
-    });
+    page.setDefaultTimeout(60000);
     try {
-        await page.goto("https://zeptonow.com/", { waitUntil: 'networkidle' });
+        // await page.goto("https://zeptonow.com/", { waitUntil: 'networkidle' });
         await page.goto(url, { waitUntil: 'networkidle' });
 
         await page.waitForSelector("div a[data-testid='product-card']");
