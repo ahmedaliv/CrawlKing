@@ -21,7 +21,7 @@ async function runJob(job, jobId, url, pincode) {
             userAgent: randomUserAgent
         });
         const page = await context.newPage();
-        page.setDefaultTimeout(60000);
+        page.setDefaultTimeout(120000);
         await page.goto(url);
         await page.waitForSelector("div a[data-testid='product-card']");
         // Handle location input (Pincode)
@@ -291,6 +291,7 @@ async function runJob(job, jobId, url, pincode) {
         // await page.waitForSelector("section ul li[class*='PaginateItems']");
     } catch (error) {
         console.error(`Job ${jobId} failed with error: ${error.message}`);
+        await page.screenshot({ path: 'screenshot.png' });
         return [[], null];
     } finally {
         await browser.close();
