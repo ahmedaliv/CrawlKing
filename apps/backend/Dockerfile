@@ -28,4 +28,4 @@ RUN chmod +x ./jobs/setupPy.sh && ./jobs/setupPy.sh
 EXPOSE 3000
 
 # Start app
-CMD ["xvfb-run", "-a", "pnpm", "start"]
+CMD ["pnpm", "start"]
