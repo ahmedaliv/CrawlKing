@@ -212,10 +212,26 @@ export function defineScrapeGroup(agenda) {
       const scrapeResult = { jobId, data: scrapedData };
       const savedScrape = new ScrapeData(scrapeResult);
       await savedScrape.save();
+      // Send data to external server
+      try {
+        const response = await fetch('https://asia-south1-tru-pricer.cloudfunctions.net/uploadMergedProducts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productList: scrapedData }),
+        });
+
+        if (!response.ok) {
+          console.error('❌ Failed to upload data:', response.status, await response.text());
+        } else {
+          console.log('✅ Data successfully uploaded to external server');
+        }
+      } catch (err) {
+        console.error('❌ Error during external upload:', err);
+      }
       // last run (we fininshed)
       job.attrs.data.status = 'completed';
       await job.save();
-      console.log(`Scraping completed for ${ urls, pincode }`);
+      console.log(`Scraping completed for ${urls, pincode}`);
       await handleJobRecurringStatus(job, type);
     } catch (error) {
       await handleJobFailureCase(job, error);
