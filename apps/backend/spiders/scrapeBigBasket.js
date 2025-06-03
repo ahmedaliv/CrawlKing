@@ -8,56 +8,83 @@ import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
   const browser = await chromium.launch({
     headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--disable-dev-shm-usage',
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-extensions',
-      '--disable-infobars',
-      '--mute-audio',
-      '--disable-background-networking'
-    ]
+    // headless:true,
+    // args: [
+    //   '--disable-blink-features=AutomationControlled',
+    //   '--disable-dev-shm-usage',
+    //   '--no-sandbox',
+    //   '--disable-setuid-sandbox',
+    //   '--disable-extensions',
+    //   '--disable-infobars',
+    //   '--mute-audio',
+    //   '--disable-background-networking'
+    // ],
+    // proxy: {
+    //   server: 'http://77.47.158.11:50101',
+    //   username: 'apepo710',
+    //   password: 'WeUVIVbNJX'
+    // },
+    proxy: {
+      server: 'https://in-pr.oxylabs.io:20000',
+      username: 'customer-ahmedaliv_5as3Q',
+      password: 'gngn12042001=aA'
+    }
   });
 
   // Apply stealth plugin
 
   const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
   const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
     userAgent,
     viewport: { width: 1280, height: 720 },
-    bypassCSP: true
+    // bypassCSP: true
   });
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    Object.defineProperty(navigator, 'languages', {
-      get: () => ['en-US', 'en']
-    });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+  // await context.addInitScript(() => {
+  //   Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  //   Object.defineProperty(navigator, 'languages', {
+  //     get: () => ['en-US', 'en']
+  //   });
+  //   Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
 
-    // Spoof WebRTC
-    Object.defineProperty(navigator, 'connection', {
-      get: () => ({ effectiveType: '4g' })
-    });
-  });
+  //   // Spoof WebRTC
+  //   Object.defineProperty(navigator, 'connection', {
+  //     get: () => ({ effectiveType: '4g' })
+  //   });
+  // });
   const page = await context.newPage();
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => false });
-  });
-  await context.addInitScript(() => {
-    Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
-      constructor(locale, options) {
-        super('en-US', options);
-      }
-    };
-    Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
-      value: () => ({ timeZone: 'America/New_York' })
-    });
-  });
+  // await page.route("**/*", (route, request) => {
+  //   if (request.resourceType() === "image") {
+  //     route.abort();
+  //   } else {
+  //     route.continue();
+  //   }
+  // });
+  // await page.route("**/*", (route, request) => {
+  //     if (request.resourceType === "media") {
+  //         route.abort();
+  //     } else {
+  //         route.continue();
+  //     }
+  // });
+  page.setDefaultNavigationTimeout(1000 * 60 * 5);
+  page.setDefaultTimeout(1000 * 60 * 5);
+  // await context.addInitScript(() => {
+  //   Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  // });
+  // await context.addInitScript(() => {
+  //   Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
+  //     constructor(locale, options) {
+  //       super('en-US', options);
+  //     }
+  //   };
+  //   Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
+  //     value: () => ({ timeZone: 'America/New_York' })
+  //   });
+  // });
   try {
-    page.setDefaultTimeout(60000 * 3);
-    url = url.replace(/page=\d+/, 'page=1');
     await page.goto(url);
+    url = url.replace(/page=\d+/, 'page=1');
     await page.waitForSelector("section ul li[class*='PaginateItems']");
     // Handle location input (Pincode)
     await page.waitForSelector('button:has-text("Select Location")');
@@ -105,7 +132,7 @@ async function runJob(job, jobId, url, pincode) {
         route.abort();
       }
     });
-    await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
+    // await page.route(/(png|jpeg|jpg|svg)$/, (route) => route.abort());
     await page.waitForSelector("section ul li[class*='PaginateItems']");
     const categoryNameText = await page
       .locator("div[class*='Breadcrumb'] > div:last-of-type")
@@ -169,29 +196,31 @@ async function runJob(job, jobId, url, pincode) {
     const cookieString = cookies
       .map((cookie) => `${cookie.name}=${cookie.value}`)
       .join('; ');
+    const headers = {
+      accept: '*/*',
+      'accept-language': 'en-US,en;q=0.8',
+      'cache-control': 'no-cache',
+      'content-type': 'application/json',
+      'sec-ch-ua':
+        '"Chromium";v="130", "Brave";v="130", "Not?A_Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Linux"',
+      'sec-fetch-dest': 'empty',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'same-origin',
+      'sec-gpc': '1',
+      'x-channel': 'BB-WEB',
+      'x-tracker': '5d47e689-53b4-44bb-9171-46e2d037f06f',
+      cookie: cookieString
+    };
     if (requestUrl) {
+      console.log(`cookies ${cookieString}`)
       // replace the page number to be 1
       requestUrl = requestUrl.replace(/page=\d+/, 'page=1');
       console.log(requestUrl);
-      const headers = {
-        accept: '*/*',
-        'accept-language': 'en-US,en;q=0.8',
-        'cache-control': 'no-cache',
-        'content-type': 'application/json',
-        'sec-ch-ua':
-          '"Chromium";v="130", "Brave";v="130", "Not?A_Brand";v="99"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Linux"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'sec-gpc': '1',
-        'x-channel': 'BB-WEB',
-        'x-tracker': '5d47e689-53b4-44bb-9171-46e2d037f06f',
-        cookie: cookieString
-      };
       const response = await page.request.get(requestUrl, {
-        headers: headers
+        headers: headers,
+        timeout: 1000 * 60 * 5
       });
 
       // Parse and log the response
@@ -211,7 +240,8 @@ async function runJob(job, jobId, url, pincode) {
       for (let i = 1; i <= milestones; i++) {
         requestUrl = requestUrl.replace(/page=\d+/, `page=${i}`);
         const response = await page.request.get(requestUrl, {
-          headers: headers
+          headers: headers,
+          timeout: 1000 * 60 * 5
         });
         if (response.status() !== 200) {
           console.error(`Request failed with status ${response.status()}`);
