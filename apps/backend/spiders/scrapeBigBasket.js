@@ -25,7 +25,7 @@ async function runJob(job, jobId, url, pincode) {
     //   password: 'WeUVIVbNJX'
     // },
     proxy: {
-      server: 'https://in-pr.oxylabs.io:20000',
+      server: 'http://in-pr.oxylabs.io:20000',
       username: 'customer-ahmedaliv_5as3Q',
       password: 'gngn12042001=aA'
     }
