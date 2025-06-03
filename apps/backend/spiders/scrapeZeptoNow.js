@@ -2,19 +2,35 @@ import playwright from 'playwright';
 import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
     const browser = await playwright.chromium.launch({
-    headless: process.env.SPIDERS_HEADLESS_MODE === 'true' /// Set to true for headless mode
+        headless: process.env.SPIDERS_HEADLESS_MODE === 'true', // Set to true for headless mode
+        // proxy: {
+        //     server: 'http://unblock.oxylabs.io:60000',
+        //     username: 'ahmed_2YsDl',
+        //     password: 'gngn12042001=aA'
+        // },
+        proxy: {
+            server: 'http://in-pr.oxylabs.io:20000',
+            username: 'customer-ahmedaliv_5as3Q',
+            password: 'gngn12042001=aA'
+        }
+        // timeout: 10000,
     });
+
     const userAgent = new UserAgent({ deviceCategory: 'desktop' });
 
     const randomUserAgent = userAgent.toString();
     const context = await browser.newContext({
-        userAgent: randomUserAgent
+        userAgent: randomUserAgent,
+        ignoreHTTPSErrors: true,
+        extraHTTPHeaders: {
+            'x-oxylabs-geo-location': 'India'
+        }
     });
     const page = await context.newPage();
-    page.setDefaultTimeout(60000);
+    page.setDefaultTimeout(120000);
     try {
         // await page.goto("https://zeptonow.com/", { waitUntil: 'networkidle' });
-        await page.goto(url, { waitUntil: 'networkidle' });
+        await page.goto(url);
 
         await page.waitForSelector("div a[data-testid='product-card']");
         // Handle location input (Pincode)
@@ -114,7 +130,7 @@ async function runJob(job, jobId, url, pincode) {
             console.error('Failed to click pin code:', error);
             throw error; // Or handle it differently
         }
-        await page.waitForLoadState("networkidle");
+        // await page.waitForLoadState("networkidle");
         // get the products that shows when the page first loaded
 
         await page.waitForSelector("div a[data-testid='product-card']");
