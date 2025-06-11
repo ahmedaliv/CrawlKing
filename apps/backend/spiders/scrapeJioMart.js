@@ -61,6 +61,12 @@ async function runJob(job, jobId, url, pincode) {
             }
         }
 
+        const [request] = await Promise.all([
+            page.waitForRequest(request =>
+                request.url().includes('/1/indexes/') && request.method() === 'POST'
+            ),
+            handlePincodeEntry(page, pincode) // This triggers the request
+        ]);
         // Extract category name for filename
         const categoryElement = await page
             .waitForSelector('ul.jm-breadcrumbs-list > li:last-child', {
@@ -81,12 +87,6 @@ async function runJob(job, jobId, url, pincode) {
         fileName = `JioMart-${pincode}-${categoryName}-products`;
         job.attrs.data.progress = 5;
         await job.save();
-        const [request] = await Promise.all([
-            page.waitForRequest(request =>
-                request.url().includes('/1/indexes/') && request.method() === 'POST'
-            ),
-            handlePincodeEntry(page, pincode) // This triggers the request
-        ]);
 
         const requestUrl = request.url();
         const requestHeaders = request.headers();
@@ -150,11 +150,14 @@ function extractQuantity(title) {
 
 async function handlePincodeEntry(page, pincode) {
     try {
-        await page.waitForSelector('#btn_pin_code_delivery');
-        await page.click('#btn_pin_code_delivery');
+        if ( ! await page.isVisible('#rel_pincode')){
 
-        await page.waitForSelector('#btn_enter_pincode');
-        await page.click('#btn_enter_pincode');
+            await page.waitForSelector('#btn_pin_code_delivery');
+            await page.click('#btn_pin_code_delivery');
+    
+            await page.waitForSelector('#btn_enter_pincode');
+            await page.click('#btn_enter_pincode');
+        }
 
         await page.waitForSelector('#rel_pincode');
         await page.fill('#rel_pincode', pincode);
