@@ -1,8 +1,8 @@
 
 import { chromium } from 'playwright';
 import UserAgent from 'user-agents';
-import { fetch } from 'undici';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import fetch from 'node-fetch';
+import { HttpProxyAgent } from 'http-proxy-agent';
 // Configuration constants
 const DEFAULT_TIMEOUT = 60000; // 10 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
@@ -202,9 +202,14 @@ async function fetchAndParseVariants(product) {
 
 async function makeVariantRequest(productId) {
 
-    const proxyUrl = 'http://customer-ahmedaliv_5as3Q:gngn12042001=aA@us-pr.oxylabs.io:10000';
-    const agent = new HttpsProxyAgent(proxyUrl);
+    const proxy = {
+        server: 'http://us-pr.oxylabs.io:10000',
+        username: 'customer-ahmedaliv_5as3Q',
+        password: 'gngn12042001=aA'
+    };
 
+    const proxyUrl = `http://${proxy.username}:${proxy.password}@${proxy.server.split('://')[1]}`;
+    const agent = new HttpProxyAgent(proxyUrl);
     // Build headers and body as needed
     const headers = {
         "accept": "*/*",
@@ -228,11 +233,11 @@ async function makeVariantRequest(productId) {
         pageUri: `/swatch/products?attributeId=quantity&pid=${productId}&selectedAttributeId=null`
     };
 
-    const response = await fetch("https://1.rome.api.flipkart.com/api/4/page/fetch", {
+    const response = await fetch("http://1.rome.api.flipkart.com/api/4/page/fetch", {
         method: "POST",
         headers,
         body: JSON.stringify(body),
-        dispatcher: agent 
+        agent: agent
     });
 
 
