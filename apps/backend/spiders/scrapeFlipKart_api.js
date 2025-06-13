@@ -9,7 +9,7 @@ const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrent
 
 async function runJob(job, jobId, url, pincode) {
     const browser = await chromium.launch({
-        headless: process.env.SPIDERS_HEADLESS_MODE === 'true' // Run headless for better performance
+        headless: true
     });
     const startTime = performance.now();
     try {
@@ -143,6 +143,7 @@ async function runJob(job, jobId, url, pincode) {
         return [allProducts, filename];
     } catch (error) {
         console.error(`Job  with ID : ${jobId}failed with error: ${error.message}`);
+        await page.screenshot({ path: 'debug.png', fullPage: true });
         // Return any products collected so far
         return [[], null];
     } finally {
@@ -179,7 +180,7 @@ async function processProductBatch(products) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         results.push({
             ...baseInfo,
-            variant:variants,
+            variant: variants,
         });
     }
 
