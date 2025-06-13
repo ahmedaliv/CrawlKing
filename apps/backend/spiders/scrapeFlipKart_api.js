@@ -9,7 +9,7 @@ const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrent
 
 async function runJob(job, jobId, url, pincode) {
     const browser = await chromium.launch({
-        headless: false,
+        headless: process.env.SPIDERS_HEADLESS_MODE === 'true', // Set to true for headless mode
         proxy: {
             server: 'http://us-pr.oxylabs.io:10000',
             username: 'customer-ahmedaliv_5as3Q',
