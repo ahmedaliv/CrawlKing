@@ -1,6 +1,10 @@
 
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
+
+import stealth from 'puppeteer-extra-plugin-stealth';
+
 import UserAgent from 'user-agents';
+chromium.use(stealth());
 // Configuration constants
 const DEFAULT_TIMEOUT = 60000; // 10 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
@@ -8,27 +12,53 @@ const MAX_RETRIES = 3;
 const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrently
 
 async function runJob(job, jobId, url, pincode) {
-    const browser = await chromium.launch({
-        headless: true
-    });
-    const startTime = performance.now();
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-    const randomUserAgent = userAgent.toString();
-    // Create browser context with optimized settings
-    const context = await browser.newContext({
-        userAgent: randomUserAgent,
-        viewport: { width: 1280, height: 720 },
-        bypassCSP: true
-    });
+  const browser = await chromium.launch({
+    headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--disable-dev-shm-usage',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-extensions',
+      '--disable-infobars',
+      '--mute-audio',
+      '--disable-background-networking'
+    ]
+  });
 
-    // Block unnecessary resources to improve performance
-    // await context.route(
-    //     /\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|css)$/i,
-    //     (route) => route.abort()
-    // );
-    // await context.route(/\/(analytics|tracking|advertisement|ad)\//i, (route) =>
-    //     route.abort()
-    // );
+  // Apply stealth plugin
+
+  const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
+  const context = await browser.newContext({
+    userAgent,
+    viewport: { width: 1280, height: 720 },
+    bypassCSP: true
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en']
+    });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
+    // Spoof WebRTC
+    Object.defineProperty(navigator, 'connection', {
+      get: () => ({ effectiveType: '4g' })
+    });
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  });
+  await context.addInitScript(() => {
+    Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
+      constructor(locale, options) {
+        super('en-US', options);
+      }
+    };
+    Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
+      value: () => ({ timeZone: 'America/New_York' })
+    });
+  });
 
     const page = await context.newPage();
     page.setDefaultTimeout(DEFAULT_TIMEOUT);
