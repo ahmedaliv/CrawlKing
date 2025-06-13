@@ -1,10 +1,6 @@
 
-import { chromium } from 'playwright-extra';
-
-import stealth from 'puppeteer-extra-plugin-stealth';
-
+import { chromium } from 'playwright';
 import UserAgent from 'user-agents';
-chromium.use(stealth());
 // Configuration constants
 const DEFAULT_TIMEOUT = 60000; // 10 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
@@ -13,56 +9,36 @@ const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrent
 
 async function runJob(job, jobId, url, pincode) {
     const browser = await chromium.launch({
-        headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
-        args: [
-            '--disable-blink-features=AutomationControlled',
-            '--disable-dev-shm-usage',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-extensions',
-            '--disable-infobars',
-            '--mute-audio',
-            '--disable-background-networking'
-        ]
+        headless: false,
+        proxy: {
+            server: 'http://us-pr.oxylabs.io:10000',
+            username: 'customer-ahmedaliv_5as3Q',
+            password: 'gngn12042001=aA'
+        }
     });
     const startTime = performance.now();
-    // Apply stealth plugin
-
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
-    const context = await browser.newContext({
-        userAgent,
-        viewport: { width: 1280, height: 720 },
-        bypassCSP: true
-    });
-    await context.addInitScript(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en']
-        });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-
-        // Spoof WebRTC
-        Object.defineProperty(navigator, 'connection', {
-            get: () => ({ effectiveType: '4g' })
-        });
-    });
-    await context.addInitScript(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    });
-    await context.addInitScript(() => {
-        Intl.DateTimeFormat = class extends Intl.DateTimeFormat {
-            constructor(locale, options) {
-                super('en-US', options);
-            }
-        };
-        Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
-            value: () => ({ timeZone: 'America/New_York' })
-        });
-    });
-
-    const page = await context.newPage();
-    page.setDefaultTimeout(DEFAULT_TIMEOUT);
     try {
+        const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+        const randomUserAgent = userAgent.toString();
+        // Create browser context with optimized settings
+        const context = await browser.newContext({
+            userAgent: randomUserAgent,
+            viewport: { width: 1280, height: 720 },
+            bypassCSP: true,
+            ignoreHTTPSErrors:true
+        });
+
+        // Block unnecessary resources to improve performance
+        // await context.route(
+        //     /\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|css)$/i,
+        //     (route) => route.abort()
+        // );
+        // await context.route(/\/(analytics|tracking|advertisement|ad)\//i, (route) =>
+        //     route.abort()
+        // );
+
+        const page = await context.newPage();
+        page.setDefaultTimeout(DEFAULT_TIMEOUT);
         await page.goto(url);
         await page.waitForLoadState('domcontentloaded');
 
@@ -124,42 +100,21 @@ async function runJob(job, jobId, url, pincode) {
                 parsedBody.pageUri = parsedBody.pageUri.replace(/page=\d+/, `page=${currentPage}`);
 
                 console.log(`Fetching page ${currentPage} with URL: ${requestUrl}`);
+                // console.log('POST Body:', parsedBody);
+                // console.log('Headers:', headers);
 
                 const response = await page.request.post(requestUrl, {
                     headers,
                     data: parsedBody,
                 });
-
-                const status = response.status();
-                if (status !== 200) {
-                    console.error(`❌ Received non-200 status code: ${status}`);
-                    // break;
-                }
-
-                const text = await response.text();
-
-                // Quick check to see if it's likely HTML (indicative of an error page)
-                if (text.startsWith('<') || text.includes('<!DOCTYPE html')) {
-                    console.error(`❌ Received HTML instead of JSON on page ${currentPage}`);
-                    console.error('Response snippet:', text.slice(0, 300));
-                    break;
-                }
-
-                let json;
-                try {
-                    json = JSON.parse(text);
-                } catch (parseErr) {
-                    console.error(`❌ Failed to parse JSON on page ${currentPage}:`, parseErr.message);
-                    console.error('Response snippet:', text.slice(0, 300));
-                    break;
-                }
+                const json = await response.json();
 
                 const pageMeta = json?.RESPONSE?.pageMeta;
                 if (pageMeta?.pageNotChanged === true) {
                     console.log(`Stopping on page ${currentPage} — pageNotChanged = true`);
                     break;
                 }
-
+                console.log('done checking pageNotChanged');
                 const slots = json?.RESPONSE?.slots;
                 if (Array.isArray(slots)) {
                     for (const slot of slots) {
@@ -170,7 +125,7 @@ async function runJob(job, jobId, url, pincode) {
                         ) {
                             console.log(`Page ${currentPage} has ${slot.widget.data.products.length} products`);
                             const processedProducts = await processProductBatch(slot.widget.data.products);
-                            await page.waitForTimeout(1500);
+                            await page.waitForTimeout(1500)
                             processedProducts.forEach(product => {
                                 product.pincode = Number(pincode);
                             });
@@ -178,8 +133,7 @@ async function runJob(job, jobId, url, pincode) {
                         }
                     }
                 }
-
-                console.log('DONE WAITING, MOVE TO NEXT PAGE:', currentPage);
+                console.log('DONE WAITING , MOVE TO NEXT PAGE: ', currentPage)
                 currentPage++;
                 job.attrs.data.total_products = allProducts.length;
                 job.attrs.data.progress = Math.min(5 + Math.floor((currentPage / 100) * 95), 100);
@@ -190,7 +144,6 @@ async function runJob(job, jobId, url, pincode) {
                 break;
             }
         }
-
         console.log(`Total products collected: ${allProducts.length}`);
 
         return [allProducts, filename];
