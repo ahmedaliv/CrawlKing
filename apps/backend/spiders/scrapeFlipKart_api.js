@@ -12,27 +12,27 @@ async function runJob(job, jobId, url, pincode) {
         headless: true
     });
     const startTime = performance.now();
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+    const randomUserAgent = userAgent.toString();
+    // Create browser context with optimized settings
+    const context = await browser.newContext({
+        userAgent: randomUserAgent,
+        viewport: { width: 1280, height: 720 },
+        bypassCSP: true
+    });
+
+    // Block unnecessary resources to improve performance
+    // await context.route(
+    //     /\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|css)$/i,
+    //     (route) => route.abort()
+    // );
+    // await context.route(/\/(analytics|tracking|advertisement|ad)\//i, (route) =>
+    //     route.abort()
+    // );
+
+    const page = await context.newPage();
+    page.setDefaultTimeout(DEFAULT_TIMEOUT);
     try {
-        const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-        const randomUserAgent = userAgent.toString();
-        // Create browser context with optimized settings
-        const context = await browser.newContext({
-            userAgent: randomUserAgent,
-            viewport: { width: 1280, height: 720 },
-            bypassCSP: true
-        });
-
-        // Block unnecessary resources to improve performance
-        // await context.route(
-        //     /\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|css)$/i,
-        //     (route) => route.abort()
-        // );
-        // await context.route(/\/(analytics|tracking|advertisement|ad)\//i, (route) =>
-        //     route.abort()
-        // );
-
-        const page = await context.newPage();
-        page.setDefaultTimeout(DEFAULT_TIMEOUT);
         await page.goto(url);
         await page.waitForLoadState('domcontentloaded');
 
