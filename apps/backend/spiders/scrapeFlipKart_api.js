@@ -1,6 +1,8 @@
 
 import { chromium } from 'playwright';
 import UserAgent from 'user-agents';
+import { fetch } from 'undici';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 // Configuration constants
 const DEFAULT_TIMEOUT = 60000; // 10 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
@@ -25,7 +27,7 @@ async function runJob(job, jobId, url, pincode) {
             userAgent: randomUserAgent,
             viewport: { width: 1280, height: 720 },
             bypassCSP: true,
-            ignoreHTTPSErrors:true
+            ignoreHTTPSErrors: true
         });
 
         // Block unnecessary resources to improve performance
@@ -200,30 +202,37 @@ async function fetchAndParseVariants(product) {
 
 async function makeVariantRequest(productId) {
 
-    const response = await fetch("https://1.rome.api.flipkart.com/api/4/page/fetch", {
-        "headers": {
-            "accept": "*/*",
-            "accept-language": "en-US,en;q=0.5",
-            "cache-control": "no-cache",
-            "content-type": "application/json",
-            "pragma": "no-cache",
-            "sec-ch-ua": "\"Chromium\";v=\"130\", \"Brave\";v=\"130\", \"Not?A_Brand\";v=\"99\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Linux\"",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-site",
-            "sec-gpc": "1",
-            "x-user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 FKUA/website/42/website/Desktop",
-            // "cookie": "T=TI174148453792500160120507796972208001587329412188278890874052267862; rt=null; K-ACTION=null; ud=1.Fi97cbXq2dHNohHvhwt5IUZRcPmZYebObneAheGaCJ3g02P62K9sJjtYlBSR2tr6M67gt9w7lBvL8Aouco01HEF7zHpO2TSiJKMWFVckJolbTqCvWidG3YYgzaTthtx-kEE5DmxPWEzVS4YVak3-MA; at=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImQ2Yjk5NDViLWZmYTEtNGQ5ZC1iZDQyLTFkN2RmZTU4ZGNmYSJ9.eyJleHAiOjE3NTA3MDEzMjcsImlhdCI6MTc0ODk3MzMyNywiaXNzIjoia2V2bGFyIiwianRpIjoiNDgwZWFjZDMtZTMzNi00Njc3LThlNjAtMTIzZWI4MGZhM2IwIiwidHlwZSI6IkFUIiwiZElkIjoiVEkxNzQxNDg0NTM3OTI1MDAxNjAxMjA1MDc3OTY5NzIyMDgwMDE1ODczMjk0MTIxODgyNzg4OTA4NzQwNTIyNjc4NjIiLCJrZXZJZCI6IlZJNDZDQTcwRTEyMkU3NDk3NTk4OERGOTIzMEUzQjUzNjgiLCJ0SWQiOiJtYXBpIiwidnMiOiJMTyIsInoiOiJDSCIsIm0iOnRydWUsImdlbiI6NH0.CpF4rPa-efAMkOGjolqWREWKjEfq1cXHT2v01EVMFZk; AMCVS_17EB401053DAF4840A490D4C%40AdobeOrg=1; AMCV_17EB401053DAF4840A490D4C%40AdobeOrg=-227196251%7CMCIDTS%7C20252%7CMCMID%7C04384418683169608420182001947684079714%7CMCAID%7CNONE%7CMCOPTOUT-1749794305s%7CNONE; s_sq=flipkart-prd%3D%2526pid%253Dwww.flipkart.com%25253Afood-products%25253Apr%2526pidt%253D1%2526oid%253DfunctionJr%252528%252529%25257B%25257D%2526oidt%253D2%2526ot%253DDIV; vd=VI46CA70E122E74975988DF9230E3B5368-1741484543703-16.1749792590.1749781014.156026750; S=d1t13Pz9JSz8/Pz9TPz8/PwA/de4IrP2bIGp+ECnBXO2KXsWlbF5T5XacHkdOa78ykM/cO5xvoOle9JNrkFkW0UTulA==; SN=VI46CA70E122E74975988DF9230E3B5368.TOKB6A88603E34245FF8C6532C67644379E.1749792590018.LO",
-            "Referer": "https://www.flipkart.com/",
-            "Referrer-Policy": "strict-origin-when-cross-origin"
-        },
-        body: JSON.stringify({
-            pageUri: `/swatch/products?attributeId=quantity&pid=${productId}&selectedAttributeId=null`
-        }),
+    const proxyUrl = 'http://customer-ahmedaliv_5as3Q:gngn12042001=aA@us-pr.oxylabs.io:10000';
+    const agent = new HttpsProxyAgent(proxyUrl);
 
-        "method": "POST"
+    // Build headers and body as needed
+    const headers = {
+        "accept": "*/*",
+        "accept-language": "en-US,en;q=0.5",
+        "cache-control": "no-cache",
+        "content-type": "application/json",
+        "pragma": "no-cache",
+        "sec-ch-ua": "\"Chromium\";v=\"130\", \"Brave\";v=\"130\", \"Not?A_Brand\";v=\"99\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Linux\"",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "sec-gpc": "1",
+        "x-user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 FKUA/website/42/website/Desktop",
+        "Referer": "https://www.flipkart.com/",
+        "Referrer-Policy": "strict-origin-when-cross-origin"
+    };
+
+    const body = {
+        pageUri: `/swatch/products?attributeId=quantity&pid=${productId}&selectedAttributeId=null`
+    };
+
+    const response = await fetch("https://1.rome.api.flipkart.com/api/4/page/fetch", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        dispatcher: agent 
     });
 
 
