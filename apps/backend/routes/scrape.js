@@ -54,6 +54,7 @@ async function scheduleScrape(
 
       if (repeatInterval === 'daily') {
         interval = `0 ${minute} ${hour} * * *`;
+        console.log(`Daily interval set to: ${interval}`);
       } else if (repeatInterval === 'weekly') {
         const dayOfWeek = scheduledMoment.format('d');
         interval = `0 ${minute} ${hour} * * ${dayOfWeek}`;

@@ -41,6 +41,8 @@ async function runJob(job, jobId, url, pincode) {
     );
     let catName = '';
     let filename = `flipkart-${pincode}-food-products-products`;
+   try{
+  
     if ((await categoryElement.count()) > 0) {
       catName = await categoryElement.textContent();
       catName = catName
@@ -52,6 +54,11 @@ async function runJob(job, jobId, url, pincode) {
         .toLowerCase();
       filename = `flipkar-${pincode}-${catName}-products`;
     }
+  } catch(e){
+    console.log(`Error getting category name: ${e.message}`);
+    catName = 'unknown-category';
+    filename = `flipkart-${pincode}-unknown-category-products`;
+  }
     const productElements = await page
       .locator(
         'div#container > div > div:nth-child(3) > div > div:nth-child(2) div[data-id]'
@@ -111,7 +118,7 @@ async function runJob(job, jobId, url, pincode) {
           // if there's no choices nor quantity ( go with the one under the title)
           // now we need to get the variants ( quantity and price)
           await productElement.hover();
-          await page.waitForTimeout(1000);
+          await page.waitForTimeout(2000);
           const lastDiv = productElement.locator('> div > div:last-child');
 
           if ((await lastDiv.count()) > 0) {
@@ -221,7 +228,7 @@ async function runJob(job, jobId, url, pincode) {
       const oldUrl = page.url();
       await page.waitForURL((url) => url !== oldUrl);
 
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(6000);
 
       const newTotalProducts = await page.locator('h1 + span').textContent();
       console.log(`newTotalProducts showing: ${newTotalProducts}`);

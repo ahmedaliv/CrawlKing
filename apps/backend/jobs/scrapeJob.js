@@ -4,7 +4,7 @@ import { main as scrapeBigBasket } from '../spiders/scrapeBigBasket.js';
 import { main as scrapeBlinkit } from '../spiders/scrapeBlinkit.js';
 import { main as scrapeZeptoNow } from '../spiders/scrapeZeptoNow.js';
 import { main as scrapeSwiggy } from '../spiders/scrapeSwiggy.js';
-import { main as scrapeFlipKart } from '../spiders/scrapeFlipKart.js';
+import { main as scrapeFlipKart } from '../spiders/scrapeFlipKart_api.js';
 import ScrapeData from '../models/ScrapeData.js'; // Import ScrapeData model
 import { v4 as uuid } from 'uuid';
 import fs from 'fs/promises';
