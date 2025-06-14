@@ -230,23 +230,23 @@ def match_products(folder_path: str):
             if subgroup:
                 rep_product = subgroup[0]
                 entry = {
-                    "name": rep_product['title'],
+                    "name": rep_product.get('title', ''),
                     "MRP": mrp,
                     "brand": brand,
-                    "cleanedTitle": rep_product['cleanedTitle'],
+                    "cleanedTitle": rep_product.get('cleanedTitle', ''),
                     "matches": [
                         {
-                            "title": p['title'],
-                            "brand": p['brand'],
-                            "price": p['price'],
-                            "imageUrl": p['imageUrl'],
-                            "url": p['url'],
-                            "source": p['source'],
-                            "quantity": p['quantity'],
-                            "cleanedTitle": p['cleanedTitle']
+                            "title": p.get('title', ''),
+                            "brand": p.get('brand', ''),
+                            "price": p.get('price', 0),
+                            "imageUrl": p.get('imageUrl', ''),
+                            "url": p.get('url', ''),
+                            "source": p.get('source', ''),
+                            "quantity": p.get('quantity', ''),  # Default is ''
+                            "cleanedTitle": p.get('cleanedTitle', '')
                         } for p in subgroup
                     ],
-                    "pincode": rep_product['pincode']
+                    "pincode": rep_product.get('pincode', '')
                 }
                 output.append(entry)
 
