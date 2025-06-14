@@ -6,7 +6,7 @@ const agenda = new Agenda({
   db: { address: process.env.DB_URL, collection: 'agendaJobs' },
   processEvery: '30 seconds',
   maxConcurrency: 2,
-  defaultLockLifetime: 60 * 60 * 1000 // 60 minutes
+  defaultLockLifetime: 2 * 60 * 60 * 1000 // 2 hours
 });
 
 agenda.on('ready', () => {

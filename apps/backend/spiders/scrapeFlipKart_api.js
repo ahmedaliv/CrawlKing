@@ -136,7 +136,6 @@ async function runJob(job, jobId, url, pincode) {
                             slot?.widget?.type === 'PRODUCT_SUMMARY' &&
                             Array.isArray(slot?.widget?.data?.products)
                         ) {
-                            console.log(`Page ${currentPage} has ${slot.widget.data.products.length} products`);
                             const processedProducts = await processProductBatch(slot.widget.data.products);
                             await page.waitForTimeout(1500)
                             processedProducts.forEach(product => {
@@ -178,7 +177,6 @@ export async function main(job, jobId, url, pincode) {
     return await runJob(job, jobId, url, pincode);
 }
 async function processProductBatch(products) {
-    console.log('inside processProductBatch');
     const results = [];
 
     for (const product of products) {
@@ -265,7 +263,7 @@ async function makeVariantRequest(productId) {
         const json = JSON.parse(responseText);
         return json;
     } catch (err) {
-        console.error("Failed to parse JSON:", err);
+        console.error("Failed to parse JSON in Variants Response:", err);
         return null;
     }
 
