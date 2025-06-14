@@ -94,7 +94,7 @@ async function runJob(job, jobId, url, pincode) {
         const parsedBody = JSON.parse(postData); // base payload
         let currentPage = 1;
         const allProducts = [];
-
+        let retryCount = 0
         while (true) {
             try {
                 // Update body and uri
@@ -104,13 +104,24 @@ async function runJob(job, jobId, url, pincode) {
                 console.log(`Fetching page ${currentPage} with URL: ${requestUrl}`);
                 // console.log('POST Body:', parsedBody);
                 // console.log('Headers:', headers);
-
-                const response = await page.request.post(requestUrl, {
-                    headers,
-                    data: parsedBody,
-                });
-                const json = await response.json();
-
+                let json = '';
+                try {
+                    const response = await page.request.post(requestUrl, {
+                        headers,
+                        data: parsedBody,
+                    });
+                     json = await response.json();
+                } catch (e) {
+                    console.error(`Error fetching page ${currentPage}:`, e.message);
+                    if (retryCount < MAX_RETRIES) {
+                        console.log(`Retrying page ${currentPage} (${retryCount + 1}/${MAX_RETRIES})...`);
+                        retryCount++;
+                        continue; // Retry the same page
+                    } else {
+                        console.error(`Max retries reached for page ${currentPage}. Aborting.`);
+                        break; // Abort after max retries
+                    }
+                }
                 const pageMeta = json?.RESPONSE?.pageMeta;
                 if (pageMeta?.pageNotChanged === true) {
                     console.log(`Stopping on page ${currentPage} — pageNotChanged = true`);
@@ -135,6 +146,7 @@ async function runJob(job, jobId, url, pincode) {
                         }
                     }
                 }
+                await page.waitForTimeout(5000)
                 console.log('DONE WAITING , MOVE TO NEXT PAGE: ', currentPage)
                 currentPage++;
                 job.attrs.data.total_products = allProducts.length;
