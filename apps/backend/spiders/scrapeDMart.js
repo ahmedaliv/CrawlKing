@@ -90,7 +90,7 @@ async function runJob(job, jobId, url, pincode) {
       'sec-fetch-mode': 'cors',
       'sec-fetch-site': 'same-site',
       'sec-gpc': '1',
-      storeid: storeId,
+      storeid: String(storeId),
       'x-request-id': x_request_id || ''
     };
     const lastSegmentOfUrl = url.split('/').pop();
