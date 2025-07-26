@@ -3,11 +3,6 @@ import UserAgent from 'user-agents';
 async function runJob(job, jobId, url, pincode) {
     const browser = await playwright.chromium.launch({
         headless: process.env.SPIDERS_HEADLESS_MODE === 'true', // Set to true for headless mode
-        // proxy: {
-        //     server: 'http://unblock.oxylabs.io:60000',
-        //     username: 'ahmed_2YsDl',
-        //     password: 'gngn12042001=aA'
-        // },
         proxy: {
             server: 'http://in-pr.oxylabs.io:20000',
             username: 'customer-ahmedaliv_5as3Q',
@@ -32,7 +27,7 @@ async function runJob(job, jobId, url, pincode) {
         // await page.goto("https://zeptonow.com/", { waitUntil: 'networkidle' });
         await page.goto(url);
 
-        await page.waitForSelector("div a[data-testid='product-card']");
+        await page.waitForSelector("div.content-start a");
         // Handle location input (Pincode)
         await page.waitForSelector('button[aria-label="Select Location"]');
         const pincodeButton = page
@@ -133,7 +128,7 @@ async function runJob(job, jobId, url, pincode) {
         // await page.waitForLoadState("networkidle");
         // get the products that shows when the page first loaded
 
-        await page.waitForSelector("div a[data-testid='product-card']");
+        await page.waitForSelector("div.content-start a");
 
 
         console.log('Product cards loaded');
@@ -158,7 +153,7 @@ async function runJob(job, jobId, url, pincode) {
                     // 2) If we’ve waited too long, reset to first card (or top) and restart timer
                     if (now - startTime > TIMEOUT_MS) {
                         console.log('Timeout reached → resetting to first card and retrying');
-                        const firstCard = document.querySelector('a[data-testid="product-card"]');
+                        const firstCard = document.querySelector('div.content-start a');
                         if (firstCard) {
                             const rect = firstCard.getBoundingClientRect();
                             const scrollY = window.scrollY || window.pageYOffset;
@@ -175,7 +170,7 @@ async function runJob(job, jobId, url, pincode) {
                     }
 
                     // 3) Normal “scroll to last card” logic
-                    const cards = document.querySelectorAll('a[data-testid="product-card"]');
+                    const cards = document.querySelectorAll('div.content-start a');
                     const count = cards.length;
                     if (count > prevCount) {
                         prevCount = count;
@@ -195,11 +190,12 @@ async function runJob(job, jobId, url, pincode) {
             });
         });
 
-        const cards = page.locator("div a[data-testid='product-card']");
+        const cards = page.locator("div.content-start a");
         const count = await cards.count();
         const productMap = {};
         const titleIdMap = {};
 
+        page.setDefaultTimeout(10000);
         for (let idx = 0; idx < count; idx++) {
             const card = cards.nth(idx);
             try {
@@ -208,7 +204,7 @@ async function runJob(job, jobId, url, pincode) {
                 href = href ? `https://www.zeptonow.com${href}` : '';
                 const productId = href.split('pvid/')[1] || '';
                 // title → first matching h5
-                const titleLocator = card.locator('> div:nth-child(2) > div:first-child h5').first();
+                const titleLocator = card.locator('div[data-slot-id="ProductName"]').first();
                 const title = ((await titleLocator.textContent()) || '').trim();
                 if (titleIdMap[title]) {
                     const variantExists = productMap[
@@ -222,16 +218,16 @@ async function runJob(job, jobId, url, pincode) {
 
 
                 // quantity → first matching span
-                const qtyLocator = card.locator('> div:nth-child(2) span').first();
+                const qtyLocator = card.locator('div[data-slot-id="PackSize"]').first();
                 const quantity = ((await qtyLocator.textContent()) || '').trim();
 
                 // mrp & sale → first matching p and h4
-                const mrpLocator = card.locator('> div:nth-child(3) > div p').first();
+                const mrpLocator = card.locator('div[data-slot-id="Price"] p').first();
                 let mrp = '';
                 if (await mrpLocator.count() > 0) {
                     mrp = (await mrpLocator.textContent() || '').trim();
                 }
-                const saleLocator = card.locator('> div:nth-child(3) > div h4').first();
+                const saleLocator = card.locator('div[data-slot-id="Price"] p:nth-of-type(2)').first();
                 const sale = ((await saleLocator.textContent()) || '').trim();
                 if (!mrp) mrp = sale;
 

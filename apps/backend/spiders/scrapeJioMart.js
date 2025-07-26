@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import UserAgent from 'user-agents';
 
 // Configuration constants
-const DEFAULT_TIMEOUT = 30000; // 30 seconds
+const DEFAULT_TIMEOUT = 10000; // 30 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
 const MAX_RETRIES = 3;
 const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrently
@@ -149,6 +149,21 @@ function extractQuantity(title) {
 }
 
 async function handlePincodeEntry(page, pincode) {
+    if (await page.isVisible('div#location_popup .alcohol-popup')) {
+        try{
+            await page.click('div#location_popup button#btn_location_close_icon');
+
+            await page.waitForSelector('#rel_pincode');
+            await page.fill('#rel_pincode', pincode);
+
+            await page.click('#btn_pincode_submit');
+
+            await page.waitForSelector('.ais-InfiniteHits-list');
+            return 
+        } catch (error) {
+            throw new Error(`Pincode error: ${error.message}`);
+        }
+    }
     try {
         if ( ! await page.isVisible('#rel_pincode')){
 
