@@ -1,7 +1,10 @@
 
-import { chromium } from 'playwright';
 import UserAgent from 'user-agents';
+import { chromium } from 'playwright-extra';
 
+import stealth from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(stealth());
 // Configuration constants
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const SCROLL_TIMEOUT = 1000; // 1 second
@@ -11,12 +14,22 @@ const CONCURRENT_PRODUCT_LIMIT = 20; // Number of products to process concurrent
 async function runJob(job, jobId, url, pincode) {
     console.log(`Starting scrape job for ${url} with pincode ${pincode}`);
     const browser = await chromium.launch({
-        headless: process.env.SPIDERS_HEADLESS_MODE === 'true' // Run headless for better performance
+        // headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
+        headless: true,
+        args: [
+        '--disable-blink-features=AutomationControlled',
+        '--disable-dev-shm-usage',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-extensions',
+        '--disable-infobars',
+        '--mute-audio',
+        '--disable-background-networking'
+        ]
     });
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-    const randomUserAgent = userAgent.toString();
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
     const context = await browser.newContext({
-        userAgent: randomUserAgent,
+        userAgent,
         viewport: { width: 1280, height: 720 },
         bypassCSP: true
     });
@@ -129,6 +142,7 @@ async function runJob(job, jobId, url, pincode) {
 
     } catch (error) {
         console.error(`Error during initial setup: ${error.message}`);
+        await page.screenshot({ path: 'debugJiomart.png', fullPage: true });
         throw error;
     } finally {
         await page.close();
