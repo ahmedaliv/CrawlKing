@@ -1,16 +1,29 @@
-import playwright from 'playwright';
 import UserAgent from 'user-agents';
+import { chromium } from 'playwright-extra';
+
+import stealth from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(stealth());
 async function runJob(job, jobId, url, pincode) {
-    const browser = await playwright.chromium.launch({
-        headless: process.env.SPIDERS_HEADLESS_MODE === 'true', // Set to true for headless mode
+    const browser = await chromium.launch({
+        headless: process.env.SPIDERS_HEADLESS_MODE === 'true',
+        // headless: true,
+        args: [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-dev-shm-usage',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-extensions',
+            '--disable-infobars',
+            '--mute-audio',
+            '--disable-background-networking'
+        ],
         proxy: {
             server: 'http://in-pr.oxylabs.io:20000',
             username: 'customer-ahmedaliv_5as3Q',
             password: 'gngn12042001=aA'
         }
-        // timeout: 10000,
     });
-
     const userAgent = new UserAgent({ deviceCategory: 'desktop' });
 
     const randomUserAgent = userAgent.toString();
@@ -222,12 +235,12 @@ async function runJob(job, jobId, url, pincode) {
                 const quantity = ((await qtyLocator.textContent()) || '').trim();
 
                 // mrp & sale → first matching p and h4
-                const mrpLocator = card.locator('div[data-slot-id="Price"] p').first();
+                const mrpLocator = card.locator('div[data-slot-id="Price"] p[class*="original-price"]').first();
                 let mrp = '';
                 if (await mrpLocator.count() > 0) {
                     mrp = (await mrpLocator.textContent() || '').trim();
                 }
-                const saleLocator = card.locator('div[data-slot-id="Price"] p:nth-of-type(2)').first();
+                const saleLocator = card.locator('div[data-slot-id="Price"] p[class*="price"]:not([class*="original-price"])').first();
                 const sale = ((await saleLocator.textContent()) || '').trim();
                 if (!mrp) mrp = sale;
 
