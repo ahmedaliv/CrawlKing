@@ -235,12 +235,12 @@ async function runJob(job, jobId, url, pincode) {
                 const quantity = ((await qtyLocator.textContent()) || '').trim();
 
                 // mrp & sale → first matching p and h4
-                const mrpLocator = card.locator('div[data-slot-id="Price"] p[class*="original-price"]').first();
+                const mrpLocator = card.locator('div[data-slot-id="Price"] p:first-child').first();
                 let mrp = '';
                 if (await mrpLocator.count() > 0) {
                     mrp = (await mrpLocator.textContent() || '').trim();
                 }
-                const saleLocator = card.locator('div[data-slot-id="Price"] p[class*="price"]:not([class*="original-price"])').first();
+                const saleLocator = card.locator('div[data-slot-id="Price"] p:nth-child(2)').first();
                 const sale = ((await saleLocator.textContent()) || '').trim();
                 if (!mrp) mrp = sale;
 
